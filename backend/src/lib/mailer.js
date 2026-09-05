@@ -50,9 +50,6 @@ const transport = smtpConfigured
 // Gmail's first TLS-and-auth handshake costs the better part of a minute on a
 // cold connection. Paying it at boot rather than inside whoever happens to
 // sign in first is the difference between a snappy login and a 25-second one.
-if (transport) {
-  transport.verify().catch((err) => console.warn(`[mailer] SMTP not reachable: ${err.message}`))
-}
 
 /**
  * Record a message and try to send it.
@@ -88,14 +85,40 @@ export async function deliver({ to, subject, body }) {
   }
 }
 
-/** Reported by /health so a misconfigured SMTP is visible before someone
- *  discovers it by not receiving a login code. */
-export async function mailerStatus() {
-  if (!transport) return { status: 'outbox-only' }
-  try {
-    await transport.verify()
-    return { status: 'up', host: SMTP_HOST }
-  } catch (err) {
-    return { status: 'down', host: SMTP_HOST, error: err.message }
-  }
+/**
+ * Reported by /health so a misconfigured SMTP is visible before someone
+ * discovers it by not receiving a login code.
+ *
+ * Never blocks on the network. `transport.verify()` opens a connection and
+ * authenticates, which against Gmail costs seconds — doing that per request
+ * made /health take 13-27s, slow enough for a monitor to call the service
+ * down over a check that was only ever informational. The result is cached and
+ * refreshed in the background, so a caller always gets the last known answer
+ * immediately.
+ */
+const PROBE_TTL_MS = 60_000
+let probe = { status: 'unknown', at: 0 }
+let probing = false
+
+function refreshProbe() {
+  if (probing) return
+  probing = true
+  transport.verify()
+    .then(() => { probe = { status: 'up', host: SMTP_HOST, at: Date.now() } })
+    .catch((err) => { probe = { status: 'down', host: SMTP_HOST, error: err.message, at: Date.now() } })
+    .finally(() => { probing = false })
 }
+
+export function mailerStatus() {
+  if (!transport) return { status: 'outbox-only' }
+  if (Date.now() - probe.at > PROBE_TTL_MS) refreshProbe()
+  const { at, ...rest } = probe
+  return at ? { ...rest, checkedSecondsAgo: Math.round((Date.now() - at) / 1000) } : rest
+}
+
+// Warm the pool and seed the probe at boot. Gmail's first TLS-and-auth
+// handshake costs the better part of a minute on a cold connection; paying it
+// here rather than inside whoever happens to sign in first is the difference
+// between a snappy login and a 14-second one. Placed after the declarations
+// above because refreshProbe touches `let` bindings.
+if (transport) refreshProbe()

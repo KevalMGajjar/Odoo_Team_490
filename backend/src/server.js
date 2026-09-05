@@ -125,7 +125,7 @@ app.get('/health', async (req, res) => {
 
   // Sign-in codes go out over this. A broken SMTP would otherwise be
   // discovered by a user not receiving a code and having no way to say so.
-  checks.mail = await mailerStatus()
+  checks.mail = mailerStatus()
 
   // Surfaced so an open breaker or a cold cache is visible rather than
   // something you have to infer from behaviour.
