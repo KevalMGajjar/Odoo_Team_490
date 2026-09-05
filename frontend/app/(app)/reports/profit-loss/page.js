@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { TrendingUp, TrendingDown } from 'lucide-react'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { DrillDownLink } from '@/components/ui/DrillDownLink'
@@ -19,8 +20,24 @@ const cols = [
   { key: 'balance', header: 'Amount', align: 'right', render: (r) => formatMoney(r.balance) },
 ]
 
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?from=&to=, so the range must come from the URL.
+ */
 export default function ProfitLossPage() {
-  const [range, setRange] = useState(defaultRange)
+  return (
+    <Suspense fallback={<ReportShell title="Profit & Loss" loading />}>
+      <ProfitLossPageContent />
+    </Suspense>
+  )
+}
+
+function ProfitLossPageContent() {
+  const params = useSearchParams()
+  const [range, setRange] = useState(() => {
+    const from = params.get('from'); const to = params.get('to')
+    return from && to ? { from, to } : defaultRange()
+  })
   const { data, loading } = useApiGet('/reports/profit-loss', range)
 
   return (

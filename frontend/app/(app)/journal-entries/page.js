@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { ControlPanel } from '@/components/layout/ControlPanel'
@@ -17,10 +17,23 @@ const FILTERS = [
   { value: 'draft', label: 'Drafts' },
 ]
 
+/**
+ * Suspense wrapper for useSearchParams() — the voice assistant may arrive
+ * with ?state=draft, which seeds the Posted/Drafts filter below.
+ */
 export default function JournalEntriesListPage() {
+  return (
+    <Suspense fallback={null}>
+      <JournalEntriesListPageContent />
+    </Suspense>
+  )
+}
+
+function JournalEntriesListPageContent() {
   const router = useRouter()
   const { user } = useAuth()
-  const [state, setState] = useState('posted')
+  const params = useSearchParams()
+  const [state, setState] = useState(() => (params.get('state') === 'draft' ? 'draft' : 'posted'))
   const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/journal-entries', {
     extraParams: { state },
   })

@@ -24,7 +24,7 @@ export default function GeneralLedgerPage() {
 function GeneralLedgerContent() {
   const params = useSearchParams()
   const [account, setAccount] = useState(null)
-  const [range, setRange] = useState({ from: '', to: '' })
+  const [range, setRange] = useState(() => ({ from: params.get('from') || '', to: params.get('to') || '' }))
 
   const accountId = account?.id || params.get('accountId') || undefined
   const { data, loading } = useApiGet('/reports/general-ledger', {

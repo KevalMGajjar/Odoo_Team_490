@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, Search, Moon, Sun, ChevronDown, LogOut, Wifi, WifiOff } from 'lucide-react'
+import { Menu, Search, Moon, Sun, ChevronDown, LogOut, Wifi, WifiOff, Mic } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useTheme } from '@/lib/useTheme'
 import { CommandPalette } from './CommandPalette'
+import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
 
 const ROLE_LABEL = { admin: 'Admin', accountant: 'Accountant', user: 'Portal User' }
 
@@ -19,6 +20,7 @@ export function Topbar({ onMenuClick }) {
   const { toggle } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [voiceOpen, setVoiceOpen] = useState(false)
 
   // global ⌘K / Ctrl+K — owned here since Topbar holds the open state
   useEffect(() => {
@@ -71,6 +73,18 @@ export function Topbar({ onMenuClick }) {
           {online ? 'Online' : 'Offline'}
         </span>
 
+        {/* Portal users are refused by the backend, so don't offer it to them. */}
+        {user?.role !== 'user' && (
+          <button
+            onClick={() => setVoiceOpen(true)}
+            className="rounded p-1.5 text-ink-muted hover:bg-surface-hover"
+            aria-label="Voice assistant"
+            title="Voice assistant — ask to see a report"
+          >
+            <Mic size={16} />
+          </button>
+        )}
+
         <button onClick={toggle} className="rounded p-1.5 text-ink-muted hover:bg-surface-hover" aria-label="Toggle theme">
           <Sun size={16} className="dark:hidden" />
           <Moon size={16} className="hidden dark:block" />
@@ -108,6 +122,7 @@ export function Topbar({ onMenuClick }) {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <VoiceAssistant open={voiceOpen} onClose={() => setVoiceOpen(false)} />
     </header>
   )
 }

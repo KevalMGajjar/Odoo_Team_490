@@ -1,14 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { useApiGet } from '@/lib/useApi'
 import { formatMoney, formatPercent, toDateInput } from '@/lib/format'
 import { downloadCsv } from '@/lib/downloadCsv'
 
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?from=&to=, so the range must come from the URL.
+ */
 export default function BudgetReportPage() {
-  const [range, setRange] = useState({ from: '', to: '' })
+  return (
+    <Suspense fallback={<ReportShell title="Budget Report" loading />}>
+      <BudgetReportPageContent />
+    </Suspense>
+  )
+}
+
+function BudgetReportPageContent() {
+  const params = useSearchParams()
+  const [range, setRange] = useState(() => ({ from: params.get('from') || '', to: params.get('to') || '' }))
   const { data, loading } = useApiGet('/reports/budget', { from: range.from || undefined, to: range.to || undefined })
 
   const cols = [

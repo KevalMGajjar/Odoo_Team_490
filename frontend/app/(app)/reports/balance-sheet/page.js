@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { BalancedBanner } from '@/components/ui/BalancedBanner'
 import { DrillDownLink } from '@/components/ui/DrillDownLink'
@@ -15,8 +16,21 @@ const cols = [
 
 const sumBalances = (rows) => (rows ?? []).reduce((a, r) => a + Number(r.balance), 0)
 
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?asOf=, so the filter must come from the URL.
+ */
 export default function BalanceSheetPage() {
-  const [asOf, setAsOf] = useState(toDateInput(new Date()))
+  return (
+    <Suspense fallback={<ReportShell title="Balance Sheet" loading />}>
+      <BalanceSheetPageContent />
+    </Suspense>
+  )
+}
+
+function BalanceSheetPageContent() {
+  const params = useSearchParams()
+  const [asOf, setAsOf] = useState(params.get('asOf') || toDateInput(new Date()))
   const { data, loading } = useApiGet('/reports/balance-sheet', { asOf })
 
   return (

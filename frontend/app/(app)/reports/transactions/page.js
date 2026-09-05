@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { Select } from '@/components/ui/FormField'
@@ -15,9 +16,22 @@ const VOUCHER_TYPES = ['BReceipt', 'BPayment', 'CReceipt', 'CPayment', 'Journal'
  * amount, reference, narration. SIGN CONVENTION: amount = credit − debit,
  * so a positive figure is a credit and a negative one is a debit.
  */
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?from=&to=, so the range must come from the URL.
+ */
 export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<ReportShell title="Transactions" loading />}>
+      <TransactionsPageContent />
+    </Suspense>
+  )
+}
+
+function TransactionsPageContent() {
+  const params = useSearchParams()
   const [voucherType, setVoucherType] = useState('')
-  const [range, setRange] = useState({ from: '', to: '' })
+  const [range, setRange] = useState(() => ({ from: params.get('from') || '', to: params.get('to') || '' }))
   const { data, loading } = useApiGet('/reports/transactions', {
     voucherType: voucherType || undefined, from: range.from || undefined, to: range.to || undefined, limit: 300,
   })

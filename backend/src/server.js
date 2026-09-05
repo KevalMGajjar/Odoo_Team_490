@@ -21,6 +21,7 @@ import stockRoutes from './routes/stock.js'
 import odooRoutes from './routes/odoo.js'
 import userRoutes from './routes/users.js'
 import budgetRoutes from './routes/budgets.js'
+import voiceRoutes from './routes/voice.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -154,6 +155,7 @@ app.use('/audit', auditRoutes)
 app.use('/portal', portalRoutes)
 app.use('/odoo', odooRoutes)
 app.use('/users', userRoutes)
+app.use('/voice', voiceRoutes)
 app.use('/', budgetRoutes)
 app.use('/', stockRoutes)
 app.use('/', masterRoutes)

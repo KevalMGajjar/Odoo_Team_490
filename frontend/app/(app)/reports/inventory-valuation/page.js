@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { BalancedBanner } from '@/components/ui/BalancedBanner'
 import { useApiGet } from '@/lib/useApi'
@@ -15,8 +16,21 @@ const cols = [
   { key: 'value', header: 'Value', align: 'right', render: (r) => formatMoney(r.value) },
 ]
 
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?asOf=, so the filter must come from the URL.
+ */
 export default function InventoryValuationPage() {
-  const [asOf, setAsOf] = useState(toDateInput(new Date()))
+  return (
+    <Suspense fallback={<ReportShell title="Inventory Valuation" loading />}>
+      <InventoryValuationPageContent />
+    </Suspense>
+  )
+}
+
+function InventoryValuationPageContent() {
+  const params = useSearchParams()
+  const [asOf, setAsOf] = useState(params.get('asOf') || toDateInput(new Date()))
   const { data, loading } = useApiGet('/reports/inventory-valuation', { asOf })
 
   return (

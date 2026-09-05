@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { ReportShell, ReportFilterField, ReportTable } from '@/components/reports/ReportShell'
 import { BalancedBanner } from '@/components/ui/BalancedBanner'
 import { DrillDownLink } from '@/components/ui/DrillDownLink'
@@ -10,8 +11,21 @@ import { downloadCsv } from '@/lib/downloadCsv'
 
 const TYPE_LABEL = { asset: 'Asset', liability: 'Liability', income: 'Income', expense: 'Expense', capital: 'Capital' };
 
+/**
+ * useSearchParams() needs a Suspense boundary in the App Router — the voice
+ * assistant navigates here with ?asOf=, so the filter must come from the URL.
+ */
 export default function TrialBalancePage() {
-  const [asOf, setAsOf] = useState(toDateInput(new Date()))
+  return (
+    <Suspense fallback={<ReportShell title="Trial Balance" loading />}>
+      <TrialBalancePageContent />
+    </Suspense>
+  )
+}
+
+function TrialBalancePageContent() {
+  const params = useSearchParams()
+  const [asOf, setAsOf] = useState(params.get('asOf') || toDateInput(new Date()))
   const { data, loading } = useApiGet('/reports/trial-balance', { asOf })
 
   const columns = [

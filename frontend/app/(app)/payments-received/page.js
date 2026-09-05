@@ -1,16 +1,32 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { Suspense } from 'react'
+
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ControlPanel } from '@/components/layout/ControlPanel'
+import { ActiveFilters } from '@/components/layout/ActiveFilters'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useApiList } from '@/lib/useApi'
 import { formatMoney, formatDate } from '@/lib/format'
 
+/**
+ * Suspense wrapper for useSearchParams() — the voice assistant can arrive
+ * here with ?partnerId= applied.
+ */
 export default function PaymentsReceivedPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentsReceivedPageContent />
+    </Suspense>
+  )
+}
+
+function PaymentsReceivedPageContent() {
   const router = useRouter()
+  const params = useSearchParams()
   const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/payments', {
-    extraParams: { direction: 'inbound' },
+    extraParams: { direction: 'inbound', partnerId: params.get('partnerId') || undefined },
   })
 
   const columns = [
@@ -25,6 +41,7 @@ export default function PaymentsReceivedPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel breadcrumb="Sales" title="Payments Received" />
+      <ActiveFilters />
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns} rows={rows} loading={loading}

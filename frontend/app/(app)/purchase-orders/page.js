@@ -1,8 +1,10 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { ControlPanel } from '@/components/layout/ControlPanel'
+import { ActiveFilters } from '@/components/layout/ActiveFilters'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -10,10 +12,28 @@ import { useApiList } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 import { formatMoney, formatDate } from '@/lib/format'
 
+/**
+ * Wrapped in Suspense because useSearchParams() requires it in the App
+ * Router. The voice assistant navigates here with filters in the URL.
+ */
 export default function PurchaseOrdersListPage() {
+  return (
+    <Suspense fallback={null}>
+      <PurchaseOrdersListPageContent />
+    </Suspense>
+  )
+}
+
+function PurchaseOrdersListPageContent() {
   const router = useRouter()
+  const params = useSearchParams()
   const { user } = useAuth()
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/purchase-orders')
+  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/purchase-orders', {
+    extraParams: {
+      state: params.get('state') || undefined,
+      partnerId: params.get('partnerId') || undefined,
+    },
+  })
 
   const columns = [
     { key: 'number', header: 'PO #', render: (r) => <span className="font-medium tabular">{r.number}</span> },
@@ -30,6 +50,7 @@ export default function PurchaseOrdersListPage() {
         title="Purchase Orders"
         actions={canWrite(user?.role) && <Button variant="primary" size="sm" icon={Plus} onClick={() => router.push('/purchase-orders/new')}>New</Button>}
       />
+      <ActiveFilters />
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns} rows={rows} loading={loading}
