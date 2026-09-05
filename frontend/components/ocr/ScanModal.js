@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { SearchSelect } from '@/components/ui/SearchSelect'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { formatMoney } from '@/lib/format'
 import { runOcrPipeline } from '@/lib/ocr/ocr-engine'
 import { parseInvoice } from '@/lib/ocr/invoice-parser'
@@ -121,6 +121,44 @@ export function ScanModal({ open, onClose, partyRole, onFill }) {
   const updateLine = (idx, patch) => setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   const removeLine = (idx) => setLines((prev) => prev.filter((_, i) => i !== idx))
   const addLine = () => setLines((prev) => [...prev, { _key: Math.random().toString(36).slice(2), productId: '', product: null, description: '', quantity: '1', unitPrice: '0', taxRate: '0' }])
+
+  // Which row is mid-create, so only that row shows a spinner. A single shared
+  // flag would put every unmatched line into "Creating…" at once.
+  const [creatingLine, setCreatingLine] = useState(null)
+
+  const createProduct = async (idx) => {
+    const line = lines[idx]
+    if (!line?.description || creatingLine !== null) return
+    setCreatingLine(idx)
+    try {
+      const price = (Number(line.unitPrice) || 0).toFixed(2)
+      const created = await api.post('/products', {
+        name: line.description,
+        // Conservative defaults on both counts. `goods` because that is what
+        // most scanned lines are, and inventory tracking left off because
+        // turning it on changes where the bill posts — to Inventory rather
+        // than an expense — and starts a valuation history. Both are one edit
+        // away in the product master; neither should be guessed into being.
+        type: 'goods',
+        trackInventory: false,
+        // The scanned rate is a cost on a purchase document and a sale price
+        // on a sales one. Writing it to the wrong column would seed a margin
+        // that is wrong without ever looking wrong.
+        cost: partyRole === 'vendor' ? price : '0.00',
+        salesPrice: partyRole === 'vendor' ? '0.00' : price,
+        gstRate: (Number(line.taxRate) || 0).toFixed(2),
+      })
+      updateLine(idx, { productId: created.id, product: created })
+    } catch (err) {
+      setFileError(
+        err instanceof ApiError && err.status === 422
+          ? `Could not create "${line.description}" — ${err.message}. Pick a product instead.`
+          : 'Could not create the product — pick one manually instead.',
+      )
+    } finally {
+      setCreatingLine(null)
+    }
+  }
 
   const [createParty, creatingParty] = useGuardedAction(async () => {
     if (!parsed?.vendorName) return
@@ -275,6 +313,19 @@ export function ScanModal({ open, onClose, partyRole, onFill }) {
                                 placeholder={line.description || 'Select product'}
                               />
                             </div>
+                            {!line.product && line.description && (
+                              <div className="mt-1.5 flex items-center justify-between gap-2 rounded-sm bg-surface-subtle px-2 py-1 text-[11px] text-ink-muted">
+                                <span className="truncate">&ldquo;{line.description}&rdquo; — new, not in system</span>
+                                <button
+                                  type="button"
+                                  onClick={() => createProduct(idx)}
+                                  disabled={creatingLine !== null}
+                                  className="shrink-0 font-medium text-secondary hover:underline disabled:opacity-50"
+                                >
+                                  {creatingLine === idx ? 'Creating…' : 'Create'}
+                                </button>
+                              </div>
+                            )}
                           </td>
                           <td className="px-2 py-1.5">
                             <input type="number" step="1" min="0" className="field-input text-right tabular" value={line.quantity} onChange={(e) => updateLine(idx, { quantity: e.target.value })} />
