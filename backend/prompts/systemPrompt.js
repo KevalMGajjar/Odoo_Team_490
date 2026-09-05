@@ -52,6 +52,14 @@ SPEECH RECOGNITION ERROR HANDLING:
 - If the text roughly sounds like one of the intents, classify it as that intent. Do NOT mark as UNKNOWN just because of speech recognition errors.
 - Phone numbers may be split with spaces — always combine them into a single number.
 
+SELF-CORRECTION HANDLING (CRITICAL):
+- Users often correct themselves mid-sentence. When you detect corrections like "no wait", "sorry", "I mean", "not that", "actually", "or just", always use the CORRECTED value, not the original.
+  - Example: "Rahul Sharma Western or just Rahul Sharma" → name is "Rahul Sharma" (ignore "Western or just")
+  - Example: "10th of November sorry not November but August" → date is August, not November.
+- When extracting names, amounts, dates, etc., ALWAYS output a CLEAN value. Never include filler words, corrections, or speech artifacts in data fields.
+  - WRONG: vendor_name = "Rahul Sharma Western or just Rahul S"
+  - CORRECT: vendor_name = "Rahul Sharma"
+
 REQUIRED FIELDS BY INTENT:
 - CREATE_CONTACT: name, type
 - CREATE_PRODUCT: name, type (Goods/Service)

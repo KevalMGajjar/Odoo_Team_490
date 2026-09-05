@@ -5,7 +5,7 @@
 // DATA FLOW: Frontend → POST /api/voice/process → Backend → Gemini → JSON → Frontend
 
 const API_BASE = "/api/voice";
-const REQUEST_TIMEOUT = 30000; // 30 seconds
+const REQUEST_TIMEOUT = 60000; // 60 seconds (allows time for model fallback retries)
 
 /**
  * Send transcribed text to the backend for intent extraction.

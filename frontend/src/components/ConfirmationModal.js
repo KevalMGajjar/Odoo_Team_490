@@ -469,12 +469,8 @@ export class ConfirmationModal {
     }
 
     // ── Client-side validation ──
-    const errors = this._validateFormData(formData, this.intent);
+    const errors = this._validateFormData(formData);
     if (errors.length > 0) {
-      // Clear previous generic errors that might still exist on valid fields
-      this._overlay.querySelectorAll(".form-field__error").forEach(el => el.remove());
-      this._overlay.querySelectorAll(".form-field__input--error").forEach(el => el.classList.remove("form-field__input--error"));
-
       // Highlight error fields and show messages
       errors.forEach(({ field, message }) => {
         const input = this._overlay.querySelector(`[data-field-key="${field}"]`);
@@ -488,13 +484,10 @@ export class ConfirmationModal {
             input.parentElement.appendChild(errEl);
           }
           errEl.textContent = message;
-          
-          const clearError = () => {
+          input.addEventListener("input", () => {
             input.classList.remove("form-field__input--error");
-            if (errEl && errEl.parentNode) errEl.remove();
-          };
-          input.addEventListener("input", clearError, { once: true });
-          input.addEventListener("change", clearError, { once: true });
+            if (errEl) errEl.remove();
+          }, { once: true });
         }
       });
       return; // Don't save — let user fix errors
@@ -508,19 +501,8 @@ export class ConfirmationModal {
    * Validate form data with Indian accounting field rules.
    * Returns array of { field, message } for each error.
    */
-  _validateFormData(data, intent) {
+  _validateFormData(data) {
     const errors = [];
-    const config = INTENT_FIELDS[intent];
-    const today = new Date().toISOString().split("T")[0];
-
-    // 1. Check Required Fields
-    if (config) {
-      config.fields.forEach((field) => {
-        if (field.required && (!data[field.key] || String(data[field.key]).trim() === "")) {
-          errors.push({ field: field.key, message: `${field.label} is required` });
-        }
-      });
-    }
 
     // Mobile: must be 10 digits if provided
     if (data.mobile && data.mobile.trim()) {
@@ -562,52 +544,13 @@ export class ConfirmationModal {
       }
     }
 
-    // ── Numeric Bounds Validation ──
-    const positiveFields = ["amount", "purchase_price", "sale_price"];
-    positiveFields.forEach(field => {
-      if (data[field] !== undefined && data[field] !== "") {
-        const val = parseFloat(data[field]);
-        if (isNaN(val) || val <= 0) {
-          errors.push({ field: field, message: "Must be greater than 0" });
-        }
+    // Amount: must be positive if provided
+    if (data.amount !== undefined && data.amount !== "") {
+      const amt = parseFloat(data.amount);
+      if (isNaN(amt) || amt <= 0) {
+        errors.push({ field: "amount", message: "Amount must be a positive number" });
       }
-    });
-
-    // Item-level Numeric Validation
-    if (data.items && data.items.length > 0) {
-      data.items.forEach((item, idx) => {
-        if (item.quantity !== undefined && item.quantity !== "") {
-          const qty = parseFloat(item.quantity);
-          if (isNaN(qty) || qty <= 0) {
-            // Cannot easily target row cells via data-field-key, 
-            // but we can at least show a generic alert or attach to notes
-            // In a real app we'd target the specific row cell
-            if (!errors.find(e => e.field === "notes" && e.message.includes("Item quantity"))) {
-              errors.push({ field: "notes", message: `Item row ${idx + 1}: Quantity must be > 0` });
-            }
-          }
-        }
-      });
     }
-
-    // ── Temporal (Date) Validation ──
-    const pastFields = ["expected_delivery_date", "due_date"];
-    pastFields.forEach(field => {
-      if (data[field] && data[field].trim() !== "") {
-        if (data[field] < today) {
-          errors.push({ field: field, message: "Date cannot be in the past" });
-        }
-      }
-    });
-
-    const futureFields = ["payment_date", "order_date", "invoice_date"];
-    futureFields.forEach(field => {
-      if (data[field] && data[field].trim() !== "") {
-        if (data[field] > today) {
-          errors.push({ field: field, message: "Date cannot be in the future" });
-        }
-      }
-    });
 
     return errors;
   }

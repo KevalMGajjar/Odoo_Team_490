@@ -274,9 +274,9 @@ const RESPONSE_SCHEMA = {
 
 // List of models to try in sequence if one fails (e.g., due to overload)
 const FALLBACK_MODELS = [
-  "gemini-3.8-flash",      // Latest 2026 stable model
-  "gemini-3.6-flash",      // Highly capable fallback
-  "gemini-3.1-flash-lite", // Fast, lightweight fallback
+  "gemini-2.0-flash-lite",  // Most reliable for structured JSON extraction
+  "gemini-3.6-flash",       // Capable fallback
+  "gemini-3.8-flash",       // Latest but occasionally hallucinates in structured output
 ];
 
 // Helper to get a configured model instance
@@ -371,7 +371,35 @@ Remember: Extract ALL mentioned information — names, phone numbers, cities, st
         const model = getModel(modelName);
         const result = await model.generateContent(userMessage);
         const responseText = result.response.text();
-        return JSON.parse(responseText);
+        const parsed = JSON.parse(responseText);
+
+        // ── Validate response quality ──
+        // Check for garbled/hallucinated output (Chinese chars, field names in values, etc.)
+        const dataStr = JSON.stringify(parsed.data || {});
+        const hasGarbage = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(dataStr); // Chinese/CJK characters
+        const hasFieldNameLeak = /_(date|name|price|order|type|code)/.test(
+          // Check if field names leaked into values (not keys)
+          Object.values(parsed.data || {}).filter(v => typeof v === "string").join(" ")
+        );
+
+        if (hasGarbage || hasFieldNameLeak) {
+          console.warn(`[LLM Service] Model ${modelName} returned garbled output, trying next model...`);
+          lastError = new Error("Garbled model output detected");
+          continue; // Skip to next model
+        }
+
+        // Check that Purchase Orders and Sales Orders actually have items
+        if (
+          (parsed.intent === "CREATE_PURCHASE_ORDER" || parsed.intent === "CREATE_SALES_ORDER" || parsed.intent === "GENERATE_INVOICE") &&
+          (!parsed.data.items || parsed.data.items.length === 0)
+        ) {
+          // The transcript clearly mentions items but the model missed them
+          console.warn(`[LLM Service] Model ${modelName} missed line items, trying next model...`);
+          lastError = new Error("Model missed required line items");
+          continue; // Skip to next model
+        }
+
+        return parsed;
       } catch (err) {
         console.warn(`[LLM Service] Model ${modelName} failed:`, err.message);
         lastError = err;
