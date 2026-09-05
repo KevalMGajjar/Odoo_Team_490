@@ -15,6 +15,9 @@ import authRoutes from './routes/auth.js'
 import masterRoutes from './routes/masters.js'
 import reportRoutes from './routes/reports.js'
 import transactionRoutes from './routes/transactions.js'
+import auditRoutes from './routes/audit.js'
+import portalRoutes from './routes/portal.js'
+import stockRoutes from './routes/stock.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -138,6 +141,9 @@ app.get('/', (req, res) => {
 app.use('/auth', authRoutes)
 app.use('/reports', reportRoutes)
 app.use('/', transactionRoutes)
+app.use('/audit', auditRoutes)
+app.use('/portal', portalRoutes)
+app.use('/', stockRoutes)
 app.use('/', masterRoutes)
 
 app.use(notFoundHandler)

@@ -216,19 +216,28 @@ export async function seedMasters(tx, { log = () => {} } = {}) {
   log(`  users             4  (admin / invoicing_user / viewer / contact)`)
 
   // ── budgets ──
+  // Anchored to the CURRENT Indian financial year (April–March), same as
+  // seed.js's transaction dates — a hardcoded 2025 window here previously
+  // never overlapped the analytic-tagged transactions (dated against the
+  // live FY), so every budget's "actual" silently computed to zero.
+  const today = new Date()
+  const fyStartYear = today.getUTCMonth() >= 3 ? today.getUTCFullYear() : today.getUTCFullYear() - 1
+  const fyDate = (mmdd) => new Date(`${fyStartYear}-${mmdd}T00:00:00Z`)
+  const fyDateNextYear = (mmdd) => new Date(`${fyStartYear + 1}-${mmdd}T00:00:00Z`)
+
   const budgets = []
   for (const [name, analyticName, planned, start, end] of [
-    ['Q1 FY26 — Showroom Operations', 'Showroom Operations', 250000, '2025-04-01', '2025-06-30'],
-    ['Q1 FY26 — Workshop',            'Workshop',            180000, '2025-04-01', '2025-06-30'],
-    ['FY26 — Logistics',              'Logistics',           420000, '2025-04-01', '2026-03-31'],
+    ['Q1 — Showroom Operations', 'Showroom Operations', 250000, fyDate('04-01'), fyDate('06-30')],
+    ['Q1 — Workshop',            'Workshop',            180000, fyDate('04-01'), fyDate('06-30')],
+    ['Full Year — Logistics',    'Logistics',           420000, fyDate('04-01'), fyDateNextYear('03-31')],
   ]) {
     budgets.push(await tx.budget.create({
       data: {
         name,
         analyticAccountId: analytics[analyticName].id,
         plannedAmount: String(planned),
-        startDate: new Date(`${start}T00:00:00Z`),
-        endDate: new Date(`${end}T00:00:00Z`),
+        startDate: start,
+        endDate: end,
         responsibleId: users.admin.id,
       },
     }))
