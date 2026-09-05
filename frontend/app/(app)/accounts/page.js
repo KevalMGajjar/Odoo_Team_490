@@ -42,7 +42,7 @@ export default function AccountsListPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Account Masters"
+        breadcrumb="Account"
         title="Chart of Accounts"
         actions={
           canWrite(user?.role) && (

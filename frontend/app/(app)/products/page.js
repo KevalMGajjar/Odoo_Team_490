@@ -38,7 +38,7 @@ export default function ProductsListPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Business Masters"
+        breadcrumb="Account"
         title="Products"
         actions={
           canWrite(user?.role) && (

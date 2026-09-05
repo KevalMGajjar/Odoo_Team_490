@@ -25,7 +25,7 @@ export default function StockMovesPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Accounting" title="Stock Moves" />
+      <ControlPanel breadcrumb="Account" title="Stock Moves" />
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns} rows={rows} loading={loading}

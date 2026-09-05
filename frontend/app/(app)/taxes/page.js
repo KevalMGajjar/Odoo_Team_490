@@ -8,7 +8,7 @@ export default function TaxesPage() {
   return (
     <SimpleMasterPage
       title="Taxes"
-      breadcrumb="Account Masters"
+      breadcrumb="Account"
       apiPath="/taxes"
       archivable={false}
       emptyForm={{ name: '', rate: '' }}

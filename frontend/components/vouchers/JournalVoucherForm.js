@@ -56,7 +56,7 @@ export function JournalVoucherForm() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Accounting" title="Journal Voucher" />
+      <ControlPanel breadcrumb="Account" title="Journal Voucher" />
       <form onSubmit={submit} className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[720px]">
           <div className="mb-4 flex items-center justify-between">

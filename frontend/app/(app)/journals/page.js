@@ -9,7 +9,7 @@ export default function JournalsPage() {
   return (
     <SimpleMasterPage
       title="Journals"
-      breadcrumb="Account Masters"
+      breadcrumb="Account"
       apiPath="/journals"
       archivable={false}
       emptyForm={{ code: '', name: '', type: 'miscellaneous', defaultDebit: null, defaultCredit: null }}

@@ -17,7 +17,7 @@ export default function StockAdjustmentDetailPage() {
   if (loading) {
     return (
       <div className="flex h-full flex-col">
-        <ControlPanel breadcrumb="Accounting" title="Loading…" />
+        <ControlPanel breadcrumb="Account" title="Loading…" />
         <div className="p-6"><div className="form-sheet"><Skeleton className="h-56" /></div></div>
       </div>
     )
@@ -25,7 +25,7 @@ export default function StockAdjustmentDetailPage() {
   if (error || !adj) {
     return (
       <div className="flex h-full flex-col">
-        <ControlPanel breadcrumb="Accounting" title="Not found" />
+        <ControlPanel breadcrumb="Account" title="Not found" />
         <div className="p-6"><p className="text-sm text-state-overdue">Stock adjustment not found.</p></div>
       </div>
     )
@@ -33,7 +33,7 @@ export default function StockAdjustmentDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Accounting" title={adj.number} />
+      <ControlPanel breadcrumb="Account" title={adj.number} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[900px]">
           <div className="mb-4 flex items-center justify-between">

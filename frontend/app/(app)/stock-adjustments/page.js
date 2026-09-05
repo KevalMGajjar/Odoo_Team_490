@@ -26,7 +26,7 @@ export default function StockAdjustmentsPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Accounting"
+        breadcrumb="Account"
         title="Stock Adjustments"
         actions={canWrite(user?.role) && <Button variant="primary" size="sm" icon={Plus} onClick={() => router.push('/stock-adjustments/new')}>New Count</Button>}
       />

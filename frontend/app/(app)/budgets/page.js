@@ -10,7 +10,7 @@ export default function BudgetsPage() {
   return (
     <SimpleMasterPage
       title="Budgets"
-      breadcrumb="Business Masters"
+      breadcrumb="Account"
       apiPath="/budgets"
       emptyForm={{ name: '', analyticAccount: null, startDate: toDateInput(new Date()), endDate: '', plannedAmount: '' }}
       toForm={(row) => ({

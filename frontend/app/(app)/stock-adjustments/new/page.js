@@ -48,7 +48,7 @@ export default function NewStockAdjustmentPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Accounting" title="New Stock Count" />
+      <ControlPanel breadcrumb="Account" title="New Stock Count" />
       <form onSubmit={submit} className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[900px]">
           <FormSection>

@@ -58,7 +58,7 @@ export default function CurrenciesPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Account Masters"
+        breadcrumb="Account"
         title="Currencies"
         actions={canWrite(user?.role) && <Button variant="primary" size="sm" icon={Plus} onClick={() => setNewOpen(true)}>New</Button>}
       />

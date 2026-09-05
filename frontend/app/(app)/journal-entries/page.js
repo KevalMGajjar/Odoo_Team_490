@@ -34,7 +34,7 @@ export default function JournalEntriesListPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Accounting"
+        breadcrumb="Account"
         title="Journal Entries"
         actions={
           canWrite(user?.role) && (

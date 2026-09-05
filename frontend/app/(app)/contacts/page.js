@@ -37,7 +37,7 @@ export default function ContactsListPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel
-        breadcrumb="Business Masters"
+        breadcrumb="Account"
         title="Contacts"
         actions={
           canWrite(user?.role) && (

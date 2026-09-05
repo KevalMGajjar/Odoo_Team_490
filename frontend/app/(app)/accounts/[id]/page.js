@@ -13,7 +13,7 @@ export default function AccountDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Chart of Accounts" title={loading ? 'Loading…' : account?.name} />
+      <ControlPanel breadcrumb="Chart of Account" title={loading ? 'Loading…' : account?.name} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
           <div className="form-sheet"><Skeleton className="h-64" /></div>

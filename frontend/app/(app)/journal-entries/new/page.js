@@ -57,7 +57,7 @@ export default function NewJournalEntryPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Accounting" title="New Journal Entry" />
+      <ControlPanel breadcrumb="Account" title="New Journal Entry" />
       <form onSubmit={submit} className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[1100px]">
           <FormSection>

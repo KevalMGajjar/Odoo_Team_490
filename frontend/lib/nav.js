@@ -1,78 +1,72 @@
 /**
- * Sidebar structure — exactly UI.md §4's grouped tree. Each group is
+ * Sidebar structure — regrouped as Sales / Purchase / Account / Report to
+ * match the exact Odoo-style menu naming from the wireframes, while keeping
+ * the existing collapsible-group sidebar mechanics (no layout change). Every
+ * screen the app has that the wireframe doesn't explicitly name lives under
+ * Account or Report, grouped sensibly rather than dumped flat. Each group is
  * role-filtered at render time (an accountant never sees ADMIN; a portal
  * user gets an entirely different sidebar built separately in the portal layout).
  */
 
 export const NAV = [
   {
-    section: 'MASTERS',
+    section: 'SALES',
+    flat: true,
+    items: [
+      { label: 'Sales order', href: '/sales-orders' },
+      { label: 'Sale Invoice', href: '/invoices' },
+      { label: 'Receipt', href: '/payments-received' },
+    ],
+  },
+  {
+    section: 'PURCHASE',
+    flat: true,
+    items: [
+      { label: 'Purchase Order', href: '/purchase-orders' },
+      { label: 'Purchase Bill', href: '/bills' },
+      { label: 'Payment', href: '/payments-made' },
+    ],
+  },
+  {
+    section: 'ACCOUNT',
     groups: [
       {
-        label: 'Account Masters',
+        label: 'Masters',
         icon: 'folder',
         items: [
-          { label: 'Chart of Accounts', href: '/accounts' },
+          { label: 'Contact', href: '/contacts' },
+          { label: 'Product', href: '/products' },
+          { label: 'Product Categories', href: '/product-categories' },
+          { label: 'Analyticals', href: '/analytic-accounts' },
+          { label: 'Chart of Account', href: '/accounts' },
           { label: 'Journals', href: '/journals' },
           { label: 'Taxes', href: '/taxes' },
           { label: 'Currencies', href: '/currencies' },
         ],
       },
       {
-        label: 'Business Masters',
+        label: 'Entries',
         icon: 'folder',
         items: [
-          { label: 'Contacts', href: '/contacts' },
-          { label: 'Products', href: '/products' },
-          { label: 'Product Categories', href: '/product-categories' },
-          { label: 'Analytic Accounts', href: '/analytic-accounts' },
-        ],
-      },
-    ],
-  },
-  {
-    section: 'TRANSACTIONS',
-    groups: [
-      {
-        label: 'Purchase',
-        icon: 'folder',
-        items: [
-          { label: 'Purchase Orders', href: '/purchase-orders' },
-          { label: 'Vendor Bills', href: '/bills' },
-          { label: 'Payments Made', href: '/payments-made' },
+          { label: 'Journal Entries', href: '/journal-entries' },
+          { label: 'Journal Voucher', href: '/vouchers/journal' },
+          { label: 'Analytical Budget', href: '/budgets' },
         ],
       },
       {
-        label: 'Sales',
-        icon: 'folder',
-        items: [
-          { label: 'Sales Orders', href: '/sales-orders' },
-          { label: 'Customer Invoices', href: '/invoices' },
-          { label: 'Payments Received', href: '/payments-received' },
-        ],
-      },
-      {
-        label: 'Bank',
+        label: 'Bank & Cash',
         icon: 'folder',
         items: [
           { label: 'Bank Receipt', href: '/vouchers/bank-receipt' },
           { label: 'Bank Payment', href: '/vouchers/bank-payment' },
-        ],
-      },
-      {
-        label: 'Cash',
-        icon: 'folder',
-        items: [
           { label: 'Cash Receipt', href: '/vouchers/cash-receipt' },
           { label: 'Cash Payment', href: '/vouchers/cash-payment' },
         ],
       },
       {
-        label: 'Accounting',
+        label: 'Stock',
         icon: 'folder',
         items: [
-          { label: 'Journal Voucher', href: '/vouchers/journal' },
-          { label: 'Journal Entries', href: '/journal-entries' },
           { label: 'Stock Moves', href: '/stock-moves' },
           { label: 'Stock Adjustments', href: '/stock-adjustments' },
         ],
@@ -80,14 +74,14 @@ export const NAV = [
     ],
   },
   {
-    section: 'REPORTS',
+    section: 'REPORT',
     flat: true,
     items: [
-      { label: 'Trial Balance', href: '/reports/trial-balance' },
-      { label: 'Profit & Loss', href: '/reports/profit-loss' },
-      { label: 'Balance Sheet', href: '/reports/balance-sheet' },
-      { label: 'Inventory Valuation', href: '/reports/inventory-valuation' },
+      { label: 'Balancesheet', href: '/reports/balance-sheet' },
+      { label: 'Profit and Loss', href: '/reports/profit-loss' },
       { label: 'Budget Report', href: '/reports/budget' },
+      { label: 'Trial Balance', href: '/reports/trial-balance' },
+      { label: 'Inventory Valuation', href: '/reports/inventory-valuation' },
       { label: 'General Ledger', href: '/reports/general-ledger' },
       { label: 'Transactions', href: '/reports/transactions' },
     ],

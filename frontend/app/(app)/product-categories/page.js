@@ -7,7 +7,7 @@ export default function ProductCategoriesPage() {
   return (
     <SimpleMasterPage
       title="Product Categories"
-      breadcrumb="Business Masters"
+      breadcrumb="Account"
       apiPath="/product-categories"
       emptyForm={{ name: '' }}
       columns={[{ key: 'name', header: 'Name' }]}

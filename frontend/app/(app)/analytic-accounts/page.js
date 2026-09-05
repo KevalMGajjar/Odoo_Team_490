@@ -8,7 +8,7 @@ export default function AnalyticAccountsPage() {
   return (
     <SimpleMasterPage
       title="Analytic Accounts"
-      breadcrumb="Business Masters"
+      breadcrumb="Account"
       apiPath="/analytic-accounts"
       archivable={false}
       emptyForm={{ name: '', type: 'expense' }}
