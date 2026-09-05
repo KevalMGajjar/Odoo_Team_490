@@ -14,7 +14,10 @@
 
 const GSTIN_RE = /\b\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]\b/
 
-const INVOICE_NO_RE = /(?:invoice|bill|inv)\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9/\-]{3,})/i
+// `order no` and `po no` alongside the invoice wordings: the sales side scans
+// a customer's purchase order, which never says "invoice number" anywhere, so
+// without these the document number came through empty on every one of them.
+const INVOICE_NO_RE = /(?:invoice|bill|inv|purchase\s*order|order|p\.?\s?o\.?)\s*(?:no\.?|number|#)\s*[:\-]?\s*([A-Z0-9/\-]{3,})/i
 const DATE_TOKEN = '(\\d{1,2}[/\\-.]\\d{1,2}[/\\-.]\\d{2,4}|\\d{1,2}\\s+[A-Za-z]{3,9}\\.?\\s+\\d{2,4}|[A-Za-z]{3,9}\\.?\\s+\\d{1,2},?\\s+\\d{2,4})'
 const INVOICE_DATE_RE = new RegExp(`(?:invoice date|bill date|dated?|date)\\s*[:\\-]?\\s*${DATE_TOKEN}`, 'i')
 const DUE_DATE_RE = new RegExp(`due date\\s*[:\\-]?\\s*${DATE_TOKEN}`, 'i')
@@ -55,7 +58,11 @@ function normalizeDate(raw) {
 function extractVendorName(lines) {
   // Heuristic: the vendor's name is almost always the letterhead — one of the
   // first few non-empty lines, before "GSTIN"/"Invoice"/an address keyword.
-  const stopWords = /gstin|invoice|bill\s*(no|to)|date|tax invoice|address/i
+  // `purchase order` is here for the same reason `tax invoice` is — it is a
+  // document title that sits beside the letterhead. Note it is the full phrase
+  // and not a bare "order": that would cut "Border Furnishings Ltd" down to a
+  // single letter.
+  const stopWords = /gstin|invoice|bill\s*(no|to)|date|tax invoice|purchase\s*order|address/i
   for (const line of lines.slice(0, 6)) {
     // Cut the line at its first stop word rather than discarding the whole
     // row. Invoices routinely set "TAX INVOICE" beside the letterhead, and

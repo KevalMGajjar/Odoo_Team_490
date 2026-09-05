@@ -75,6 +75,52 @@ const PRESETS = {
       { description: 'Teak Wood Polish 5L', hsn: '32100000', qty: 12, unit: 'nos', rate: 850, gst: 18 },
     ],
   },
+
+  // ── sales side ──
+  // What gets scanned on invoices/new is a purchase order the customer sent
+  // us, so the letterhead is theirs and the matcher is looking for a customer
+  // rather than a vendor. Prices are the seeded sale prices, not costs.
+  sales: {
+    file: 'sample-customer-order.pdf',
+    kind: 'order',
+    vendor: {
+      name: 'Gateway Hotels Ltd',
+      address: '5th Floor, Trade Centre, Bund Garden Road',
+      city: 'Pune, Maharashtra 411001',
+      gstin: '27AAACG7654L1ZP',
+      phone: '+91 98200 33445',
+      email: 'purchase@gatewayhotels.com',
+    },
+    // Gujarat to Maharashtra, so IGST.
+    interState: true,
+    invoice: { number: 'GH/PO/2026/0219', date: '21/08/2026', dueDate: '20/09/2026', poNumber: null },
+    items: [
+      { description: 'Queen Bed Frame', hsn: '94035000', qty: 6, unit: 'pcs', rate: 21000, gst: 18 },
+      { description: 'Wardrobe (3 Door)', hsn: '94035000', qty: 4, unit: 'pcs', rate: 24500, gst: 18 },
+      { description: 'Delivery Service', hsn: '99672000', qty: 1, unit: 'nos', rate: 1200, gst: 5 },
+    ],
+  },
+
+  'sales-new': {
+    file: 'sample-customer-order-new.pdf',
+    kind: 'order',
+    vendor: {
+      name: 'Lakeview Hospitality Pvt Ltd',
+      address: '7 Fateh Sagar Road',
+      city: 'Udaipur, Rajasthan 313001',
+      gstin: '08AAFCL3321H1Z9',
+      phone: '+91 94130 77820',
+      email: 'projects@lakeviewhospitality.in',
+    },
+    interState: true,
+    invoice: { number: 'LV/PO/2026/0044', date: '25/08/2026', dueDate: '24/09/2026', poNumber: null },
+    items: [
+      { description: 'Coffee Table', hsn: '94033000', qty: 8, unit: 'pcs', rate: 5400, gst: 18 },
+      { description: 'Bar Stool', hsn: '94036000', qty: 20, unit: 'pcs', rate: 2900, gst: 18 },
+      // Not in the catalogue.
+      { description: 'Custom Reception Desk', hsn: '94033000', qty: 1, unit: 'nos', rate: 68000, gst: 18 },
+    ],
+  },
 }
 
 const BUYER = {
@@ -90,7 +136,12 @@ const money = (n) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maxim
 const COL = { sno: 40, desc: 70, hsn: 250, qty: 320, unit: 360, rate: 400, amount: 480 }
 
 function buildPdf(preset, outPath) {
-  const { vendor, invoice, items, interState } = preset
+  const { vendor, invoice, items, interState, kind = 'invoice' } = preset
+  const isOrder = kind === 'order'
+  const title = isOrder ? 'PURCHASE ORDER' : 'TAX INVOICE'
+  const numberLabel = isOrder ? 'Order No' : 'Invoice No'
+  const dateLabel = isOrder ? 'Order Date' : 'Invoice Date'
+  const counterparty = isOrder ? 'Supplier' : 'Bill To'
   const doc = new PDFDocument({ size: 'A4', margin: 40 })
   doc.pipe(createWriteStream(outPath))
 
@@ -105,17 +156,17 @@ function buildPdf(preset, outPath) {
   doc.text(`Email: ${vendor.email}`, 40, 112)
   doc.font('Helvetica-Bold').text(`GSTIN: ${vendor.gstin}`, 40, 128)
 
-  doc.font('Helvetica-Bold').fontSize(15).text('TAX INVOICE', 380, 48, { width: 175, align: 'right' })
+  doc.font('Helvetica-Bold').fontSize(15).text(title, 380, 48, { width: 175, align: 'right' })
 
   doc.font('Helvetica').fontSize(9.5)
-  doc.text(`Invoice No: ${invoice.number}`, 340, 80, { width: 215, align: 'right' })
-  doc.text(`Invoice Date: ${invoice.date}`, 340, 96, { width: 215, align: 'right' })
+  doc.text(`${numberLabel}: ${invoice.number}`, 340, 80, { width: 215, align: 'right' })
+  doc.text(`${dateLabel}: ${invoice.date}`, 340, 96, { width: 215, align: 'right' })
   doc.text(`Due Date: ${invoice.dueDate}`, 340, 112, { width: 215, align: 'right' })
-  doc.text(`PO Reference: ${invoice.poNumber}`, 340, 128, { width: 215, align: 'right' })
+  if (invoice.poNumber) doc.text(`PO Reference: ${invoice.poNumber}`, 340, 128, { width: 215, align: 'right' })
 
   doc.moveTo(40, 152).lineTo(555, 152).strokeColor('#999').stroke()
 
-  doc.font('Helvetica-Bold').fontSize(9.5).text('Bill To', 40, 164)
+  doc.font('Helvetica-Bold').fontSize(9.5).text(counterparty, 40, 164)
   doc.font('Helvetica').text(BUYER.name, 40, 180)
   doc.text(BUYER.address, 40, 194)
   doc.text(`GSTIN: ${BUYER.gstin}`, 40, 208)
@@ -220,7 +271,7 @@ const iso = (d) => { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd
 
 console.log(`\n  Wrote ${target}   (preset: ${presetName})\n`)
 console.log('  What the scanner should pull out of it:')
-console.log(`    vendor        ${preset.vendor.name}`)
+console.log(`    ${preset.kind === 'order' ? 'customer     ' : 'vendor       '} ${preset.vendor.name}`)
 console.log(`    GSTIN         ${preset.vendor.gstin}`)
 console.log(`    invoice no    ${preset.invoice.number}`)
 console.log(`    invoice date  ${preset.invoice.date}  ->  ${iso(preset.invoice.date)}`)

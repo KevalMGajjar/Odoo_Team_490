@@ -51,4 +51,4 @@ coverage/
 
 # Built app binaries — large, and rebuilt from source on demand.
 *.apk
-sample-vendor-invoice*.pdf
+sample-*.pdf
