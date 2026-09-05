@@ -43,7 +43,7 @@ export default function NewBillPage() {
           productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
           accountId: l.accountId || undefined, analyticAccountId: l.analyticAccountId || undefined,
         })),
-      })
+      }, { idempotent: true })
       push(`${bill.number} created as draft`, { type: 'success' })
       router.replace(`/bills/${bill.id}`)
     } catch (err) {

@@ -12,6 +12,7 @@ import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
 import { postPayment } from '../services/payment.js'
 import { warningsForLines } from '../services/budget.js'
+import { idempotency } from '../middleware/idempotency.js'
 import {
   postVoucher, peekVoucherNo, cashBankAccounts,
   getLastCashBankAccount, VOUCHER_META, fiscalYearOf, fiscalYearLabel,
@@ -172,7 +173,7 @@ router.get('/purchase-orders/:id', verifyJWT, internalOnly, async (req, res, nex
   } catch (err) { next(err) }
 })
 
-router.post('/purchase-orders', verifyJWT, canWrite, validate(S.purchaseOrderCreate),
+router.post('/purchase-orders', verifyJWT, canWrite, idempotency, validate(S.purchaseOrderCreate),
   async (req, res, next) => {
     try {
       const { vendorId, orderDate, currencyId, lines: input } = req.body
@@ -312,7 +313,7 @@ router.get('/bills/:id', verifyJWT, internalOnly, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-router.post('/bills', verifyJWT, canWrite, validate(S.vendorBillCreate), async (req, res, next) => {
+router.post('/bills', verifyJWT, canWrite, idempotency, validate(S.vendorBillCreate), async (req, res, next) => {
   try {
     const { vendorId, purchaseOrderId, reference, billDate, dueDate, currencyId, lines: input } = req.body
 
@@ -355,7 +356,7 @@ router.post('/bills', verifyJWT, canWrite, validate(S.vendorBillCreate), async (
 })
 
 /** Posting writes to the ledger and receives stock. Irreversible except by reversal. */
-router.post('/bills/:id/post', verifyJWT, canWrite, async (req, res, next) => {
+router.post('/bills/:id/post', verifyJWT, canWrite, idempotency, async (req, res, next) => {
   try {
     const row = await prisma.$transaction(
       (tx) => postVendorBill(tx, { billId: req.params.id, userId: req.user.id }),
@@ -397,7 +398,7 @@ router.get('/sales-orders/:id', verifyJWT, internalOnly, async (req, res, next) 
   } catch (err) { next(err) }
 })
 
-router.post('/sales-orders', verifyJWT, canWrite, validate(S.salesOrderCreate),
+router.post('/sales-orders', verifyJWT, canWrite, idempotency, validate(S.salesOrderCreate),
   async (req, res, next) => {
     try {
       const { customerId, orderDate, currencyId, lines: input } = req.body
@@ -522,7 +523,7 @@ router.get('/invoices/:id', verifyJWT, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-router.post('/invoices', verifyJWT, canWrite, validate(S.customerInvoiceCreate),
+router.post('/invoices', verifyJWT, canWrite, idempotency, validate(S.customerInvoiceCreate),
   async (req, res, next) => {
     try {
       const { customerId, salesOrderId, reference, invoiceDate, dueDate, currencyId, lines: input } = req.body
@@ -566,7 +567,7 @@ router.post('/invoices', verifyJWT, canWrite, validate(S.customerInvoiceCreate),
   })
 
 /** Posting emits TWO entries — revenue, and COGS at moving-average cost. */
-router.post('/invoices/:id/post', verifyJWT, canWrite, async (req, res, next) => {
+router.post('/invoices/:id/post', verifyJWT, canWrite, idempotency, async (req, res, next) => {
   try {
     const row = await prisma.$transaction(
       (tx) => postCustomerInvoice(tx, { invoiceId: req.params.id, userId: req.user.id }),
@@ -602,7 +603,7 @@ router.get('/payments/:id', verifyJWT, internalOnly, async (req, res, next) => {
 })
 
 /** Create and post in one call — a payment has no meaningful draft state. */
-router.post('/payments', verifyJWT, canWrite, validate(S.paymentCreate), async (req, res, next) => {
+router.post('/payments', verifyJWT, canWrite, idempotency, validate(S.paymentCreate), async (req, res, next) => {
   try {
     const { direction, partnerId, journalId, paymentDate, currencyId, amount, allocations } = req.body
 
@@ -682,9 +683,9 @@ const registerAgainst = (kind) => async (req, res, next) => {
   } catch (err) { next(err) }
 }
 
-router.post('/invoices/:id/register-payment', verifyJWT, canWrite,
+router.post('/invoices/:id/register-payment', verifyJWT, canWrite, idempotency,
   validate(S.registerPayment), registerAgainst('invoice'))
-router.post('/bills/:id/register-payment', verifyJWT, canWrite,
+router.post('/bills/:id/register-payment', verifyJWT, canWrite, idempotency,
   validate(S.registerPayment), registerAgainst('bill'))
 
 // ═══════════════════════ VOUCHERS ═══════════════════════
@@ -721,7 +722,7 @@ router.get('/vouchers/next-number', verifyJWT, internalOnly, async (req, res, ne
   } catch (err) { next(err) }
 })
 
-router.post('/vouchers', verifyJWT, canWrite, validate(S.voucherCreate), async (req, res, next) => {
+router.post('/vouchers', verifyJWT, canWrite, idempotency, validate(S.voucherCreate), async (req, res, next) => {
   try {
     const row = await prisma.$transaction(
       (tx) => postVoucher(tx, { ...req.body, userId: req.user.id }),
@@ -795,7 +796,7 @@ router.post('/journal-entries/check-balance', verifyJWT, internalOnly,
     res.json(checkBalance(req.body.items))
   })
 
-router.post('/journal-entries', verifyJWT, canWrite, validate(S.journalEntryCreate),
+router.post('/journal-entries', verifyJWT, canWrite, idempotency, validate(S.journalEntryCreate),
   async (req, res, next) => {
     try {
       const { journalId, date, reference, narration, items, asDraft } = req.body

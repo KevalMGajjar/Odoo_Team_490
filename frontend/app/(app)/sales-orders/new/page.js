@@ -50,7 +50,7 @@ export default function NewSalesOrderPage() {
           productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
           analyticAccountId: l.analyticAccountId || undefined,
         })),
-      })
+      }, { idempotent: true })
       push(`${so.number} created`, { type: 'success' })
       router.replace(`/sales-orders/${so.id}`)
     } catch (err) {

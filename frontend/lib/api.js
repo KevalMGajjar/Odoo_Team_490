@@ -45,12 +45,44 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, headers, ...rest } = {}) {
+/**
+ * Idempotency keys for money-moving POSTs.
+ *
+ * The client already blocks double-clicks, but that can't help when the
+ * request succeeds and the *response* is lost — the user retries and posts a
+ * second document for the same money. Sending a stable key lets the server
+ * recognise the retry and replay the original result.
+ *
+ * The key combines a nonce with a hash of the body, so editing the form
+ * produces a new key (a genuinely different request) while retrying an
+ * unchanged one reuses it. The nonce rotates after each success so a
+ * deliberate second identical document is still possible.
+ */
+let idempotencyNonce = cryptoRandom()
+
+function cryptoRandom() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+async function idempotencyKeyFor(body) {
+  const json = JSON.stringify(body ?? {})
+  if (typeof crypto === 'undefined' || !crypto.subtle) {
+    return `${idempotencyNonce}:${json.length}`
+  }
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(json))
+  const hex = [...new Uint8Array(digest)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${idempotencyNonce}:${hex}`
+}
+
+async function request(path, { method = 'GET', body, headers, idempotent = false, ...rest } = {}) {
+  const idempotencyHeader = idempotent ? { 'Idempotency-Key': await idempotencyKeyFor(body) } : {}
   const res = await fetch(`${BASE}${path}`, {
     method,
     credentials: 'include',
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...idempotencyHeader,
       ...headers,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -66,12 +98,16 @@ async function request(path, { method = 'GET', body, headers, ...rest } = {}) {
     throw new ApiError(message, res.status, isJson ? payload?.errors : undefined)
   }
 
+  // A fresh nonce after success means the next deliberate create is treated as
+  // a new request rather than deduplicated against this one.
+  if (idempotent) idempotencyNonce = cryptoRandom()
+
   return payload
 }
 
 export const api = {
   get: (path, params) => request(withQuery(path, params)),
-  post: (path, body) => request(path, { method: 'POST', body }),
+  post: (path, body, opts = {}) => request(path, { method: 'POST', body, ...opts }),
   put: (path, body) => request(path, { method: 'PUT', body }),
   del: (path) => request(path, { method: 'DELETE' }),
   /** Raw text/CSV download — used by report export buttons. */

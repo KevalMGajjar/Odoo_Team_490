@@ -50,7 +50,7 @@ export default function NewPurchaseOrderPage() {
           productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
           analyticAccountId: l.analyticAccountId || undefined,
         })),
-      })
+      }, { idempotent: true })
       push(`${po.number} created`, { type: 'success' })
       router.replace(`/purchase-orders/${po.id}`)
     } catch (err) {

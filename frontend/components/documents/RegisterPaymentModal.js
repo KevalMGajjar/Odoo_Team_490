@@ -50,7 +50,13 @@ export function RegisterPaymentModal({ open, onClose, kind, doc, onPosted }) {
     setError('')
     try {
       const path = kind === 'invoice' ? `/invoices/${doc.id}/register-payment` : `/bills/${doc.id}/register-payment`
-      const payment = await api.post(path, { journalId, paymentDate: date, amount: Number(amount), note: note || undefined })
+      // Recording a payment twice is the worst duplicate in the app — a lost
+      // response must never become a second payment against the same document.
+      const payment = await api.post(
+        path,
+        { journalId, paymentDate: date, amount: Number(amount), note: note || undefined },
+        { idempotent: true },
+      )
       push('Payment recorded', { type: 'success' })
       onPosted?.(payment)
       onClose()

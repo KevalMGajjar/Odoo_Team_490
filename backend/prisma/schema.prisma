@@ -894,3 +894,32 @@ model AuditLog {
   @@index([action])
   @@map("audit_log")
 }
+
+/**
+ * Replay protection for unsafe requests.
+ *
+ * A client sends `Idempotency-Key` on a POST; the first request records the
+ * key and stores its response, and any repeat of the *same* key returns that
+ * stored response instead of acting again. This is what stops a lost response
+ * — a timeout, a dropped connection, an over-eager retry — from posting the
+ * same payment twice, which no amount of button-disabling on the client can
+ * prevent.
+ *
+ * `requestHash` guards the other direction: reusing one key for a different
+ * payload is a client bug, and is rejected rather than silently returning the
+ * wrong document.
+ */
+model IdempotencyKey {
+  key         String    @id
+  userId      String    @map("user_id")
+  method      String
+  path        String
+  requestHash String    @map("request_hash")
+  statusCode  Int?      @map("status_code")
+  response    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
