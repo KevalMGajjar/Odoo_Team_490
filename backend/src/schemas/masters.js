@@ -15,6 +15,11 @@ const name = (min = 2, max = 120) =>
 const optionalText = (max = 200) =>
   z.string().trim().max(max).optional().nullable().or(z.literal('').transform(() => null))
 
+// Client resizes to 320px JPEG before upload, so a 400K-char cap (~300KB
+// decoded) is generous headroom, not a real limit anyone should hit.
+const optionalImage = () =>
+  z.string().trim().max(400_000, 'Image is too large').optional().nullable().or(z.literal('').transform(() => null))
+
 const money = (label = 'Amount', max = 99_999_999) =>
   z.coerce.number({ invalid_type_error: `${label} must be a number` })
     .nonnegative(`${label} cannot be negative`)
@@ -50,7 +55,7 @@ export const contactCreate = z.object({
   state: optionalText(80),
   pincode: z.string().trim().regex(/^\d{4,10}$/, 'Enter a valid pincode').optional().nullable()
     .or(z.literal('').transform(() => null)),
-  profileImage: optionalText(500),
+  profileImage: optionalImage(),
 })
 export const contactUpdate = contactCreate.partial()
 
@@ -72,6 +77,7 @@ const productBase = z.object({
   expenseAccountId: optionalUuid('Expense account'),
   inventoryAccountId: optionalUuid('Inventory account'),
   cogsAccountId: optionalUuid('COGS account'),
+  image: optionalImage(),
 })
 
 export const productCreate = productBase.refine(

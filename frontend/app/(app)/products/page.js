@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Package, Wrench } from 'lucide-react'
-import { ControlPanel } from '@/components/layout/ControlPanel'
+import { Plus, Package, Wrench, List, LayoutGrid } from 'lucide-react'
+import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -10,17 +11,32 @@ import { useApiList } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 import { formatMoney, formatNumber } from '@/lib/format'
 
+const VIEW_OPTIONS = [
+  { value: 'list', icon: List, label: 'List' },
+  { value: 'kanban', icon: LayoutGrid, label: 'Kanban' },
+]
+
+function Thumb({ product, size = 20 }) {
+  if (product.image) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={product.image} alt={product.name} className="rounded object-cover" style={{ width: size, height: size }} />
+  }
+  const Icon = product.type === 'service' ? Wrench : Package
+  return <Icon size={size * 0.65} className="text-ink-faint" />
+}
+
 export default function ProductsListPage() {
   const router = useRouter()
   const { user } = useAuth()
   const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/products')
+  const [view, setView] = useState('list')
 
   const columns = [
     {
       key: 'name', header: 'Product',
       render: (r) => (
         <span className="flex items-center gap-2 font-medium">
-          {r.type === 'service' ? <Wrench size={13} className="text-ink-faint" /> : <Package size={13} className="text-ink-faint" />}
+          <Thumb product={r} size={18} />
           {r.name}
         </span>
       ),
@@ -45,6 +61,7 @@ export default function ProductsListPage() {
             <Button variant="primary" size="sm" icon={Plus} onClick={() => router.push('/products/new')}>New</Button>
           )
         }
+        viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
       />
       <div className="flex-1 overflow-hidden">
         <DataTable
@@ -61,6 +78,18 @@ export default function ProductsListPage() {
           emptyTitle="No products yet."
           emptyAction={canWrite(user?.role) ? 'New Product' : undefined}
           onEmptyAction={() => router.push('/products/new')}
+          view={view}
+          renderCard={(r) => (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded border border-line bg-surface-subtle">
+                <Thumb product={r} size={56} />
+              </div>
+              <p className="truncate w-full text-sm font-semibold text-ink">{r.name}</p>
+              <p className="text-xs text-ink-faint">{r.category?.name || '—'}</p>
+              <p className="tabular text-sm font-medium text-ink">{formatMoney(r.salesPrice)}</p>
+              <StatusBadge status={r.status} />
+            </div>
+          )}
         />
       </div>
     </div>

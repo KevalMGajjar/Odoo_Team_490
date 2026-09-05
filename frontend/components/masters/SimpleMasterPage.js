@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
-import { ControlPanel } from '@/components/layout/ControlPanel'
+import { Plus, List, LayoutGrid } from 'lucide-react'
+import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -31,10 +31,12 @@ export function SimpleMasterPage({
   toForm = (row) => row,
   archivable = true,
   searchable = true,
+  renderCard, // optional: (row) => JSX — enables a List/Kanban ViewSwitcher when passed
 }) {
   const { user } = useAuth()
   const { push } = useToast()
   const { rows, loading, search, setSearch, reload } = useApiList(apiPath, { pageSize: 100 })
+  const [view, setView] = useState('list')
 
   const [modalRow, setModalRow] = useState(null) // null = closed, {} = new, {...} = edit
   const [form, setForm] = useState(emptyForm)
@@ -90,6 +92,15 @@ export function SimpleMasterPage({
             <Button variant="primary" size="sm" icon={Plus} onClick={openNew}>New</Button>
           )
         }
+        viewSwitcher={
+          renderCard && (
+            <ViewSwitcher
+              value={view}
+              onChange={setView}
+              options={[{ value: 'list', icon: List, label: 'List' }, { value: 'kanban', icon: LayoutGrid, label: 'Kanban' }]}
+            />
+          )
+        }
       />
       <div className="flex-1 overflow-hidden">
         <DataTable
@@ -102,6 +113,8 @@ export function SimpleMasterPage({
           emptyTitle={`No ${title.toLowerCase()} yet.`}
           emptyAction={canWrite(user?.role) ? 'New' : undefined}
           onEmptyAction={openNew}
+          view={view}
+          renderCard={renderCard}
         />
       </div>
 

@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Building2, User } from 'lucide-react'
-import { ControlPanel } from '@/components/layout/ControlPanel'
+import { Plus, Building2, User, List, LayoutGrid } from 'lucide-react'
+import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -10,11 +11,25 @@ import { useApiList } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 
 const TYPE_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & Vendor' }
+const VIEW_OPTIONS = [
+  { value: 'list', icon: List, label: 'List' },
+  { value: 'kanban', icon: LayoutGrid, label: 'Kanban' },
+]
+
+function Avatar({ contact, size = 20 }) {
+  if (contact.profileImage) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={contact.profileImage} alt={contact.name} className="rounded-full object-cover" style={{ width: size, height: size }} />
+  }
+  const Icon = contact.type === 'vendor' ? Building2 : User
+  return <Icon size={size * 0.7} className="text-ink-faint" />
+}
 
 export default function ContactsListPage() {
   const router = useRouter()
   const { user } = useAuth()
   const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/contacts')
+  const [view, setView] = useState('list')
 
   const columns = [
     {
@@ -22,7 +37,7 @@ export default function ContactsListPage() {
       header: 'Name',
       render: (r) => (
         <span className="flex items-center gap-2 font-medium">
-          {r.type === 'vendor' ? <Building2 size={14} className="text-ink-faint" /> : <User size={14} className="text-ink-faint" />}
+          <Avatar contact={r} size={18} />
           {r.name}
         </span>
       ),
@@ -46,6 +61,7 @@ export default function ContactsListPage() {
             </Button>
           )
         }
+        viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
       />
       <div className="flex-1 overflow-hidden">
         <DataTable
@@ -62,6 +78,18 @@ export default function ContactsListPage() {
           emptyTitle="No contacts yet — add your first customer or vendor."
           emptyAction={canWrite(user?.role) ? 'New Contact' : undefined}
           onEmptyAction={() => router.push('/contacts/new')}
+          view={view}
+          renderCard={(r) => (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-line bg-surface-subtle">
+                <Avatar contact={r} size={56} />
+              </div>
+              <p className="truncate w-full text-sm font-semibold text-ink">{r.name}</p>
+              <p className="text-xs text-ink-faint">{TYPE_LABEL[r.type] ?? r.type}</p>
+              {r.city && <p className="text-xs text-ink-faint">{r.city}</p>}
+              <StatusBadge status={r.status} />
+            </div>
+          )}
         />
       </div>
     </div>

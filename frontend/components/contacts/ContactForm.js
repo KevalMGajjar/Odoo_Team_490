@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FormField, TextInput, Select } from '@/components/ui/FormField'
 import { FormSheet, FormGrid, FormSection } from '@/components/layout/FormSheet'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/Modal'
@@ -12,7 +13,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useAuth, canModify } from '@/lib/auth'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 
-const emptyForm = { name: '', type: 'customer', email: '', mobile: '', city: '', state: '', pincode: '' }
+const emptyForm = { name: '', type: 'customer', email: '', mobile: '', city: '', state: '', pincode: '', profileImage: null }
 
 /** Shared by /contacts/new and /contacts/[id] — create and edit are the same sheet. */
 export function ContactForm({ contact }) {
@@ -24,7 +25,7 @@ export function ContactForm({ contact }) {
 
   const [form, setForm] = useState(() =>
     isEdit
-      ? { name: contact.name, type: contact.type, email: contact.email ?? '', mobile: contact.mobile ?? '', city: contact.city ?? '', state: contact.state ?? '', pincode: contact.pincode ?? '' }
+      ? { name: contact.name, type: contact.type, email: contact.email ?? '', mobile: contact.mobile ?? '', city: contact.city ?? '', state: contact.state ?? '', pincode: contact.pincode ?? '', profileImage: contact.profileImage ?? null }
       : emptyForm,
   )
   const [errors, setErrors] = useState({})
@@ -82,6 +83,16 @@ export function ContactForm({ contact }) {
         </div>
 
         <FormSection>
+          <FormField label="Photo" className="mb-4">
+            <ImageUpload
+              value={form.profileImage}
+              onChange={(v) => setForm((f) => ({ ...f, profileImage: v }))}
+              disabled={readOnly}
+              shape="circle"
+              label={form.name || 'Contact'}
+            />
+          </FormField>
+
           <FormGrid>
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <TextInput value={form.name} onChange={set('name')} disabled={readOnly} required />

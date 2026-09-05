@@ -261,6 +261,9 @@ model Product {
   /// `taxId` below is only an optional named preset that populates this value.
   gstRate        Decimal     @default(0) @map("gst_rate") @db.Decimal(5, 2)
   taxId          String?     @map("tax_id")
+  /// Data-URI (base64 JPEG), resized client-side before upload — same
+  /// storage pattern as Contact.profileImage, no separate file store.
+  image          String?     @db.Text
   status         Status      @default(active)
 
   // ── perpetual inventory ──

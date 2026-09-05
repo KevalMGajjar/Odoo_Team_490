@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { FormField, TextInput, Select } from '@/components/ui/FormField'
 import { SearchSelect } from '@/components/ui/SearchSelect'
 import { FormSheet, FormGrid, FormSection } from '@/components/layout/FormSheet'
+import { ImageUpload } from '@/components/ui/ImageUpload'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/Modal'
@@ -14,7 +15,7 @@ import { useAuth, canModify } from '@/lib/auth'
 import { formatMoney, formatNumber } from '@/lib/format'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 
-const emptyForm = { name: '', type: 'goods', categoryId: '', salesPrice: '', cost: '', gstRate: '18', trackInventory: false }
+const emptyForm = { name: '', type: 'goods', categoryId: '', salesPrice: '', cost: '', gstRate: '18', trackInventory: false, image: null }
 
 export function ProductForm({ product }) {
   const isEdit = Boolean(product)
@@ -28,7 +29,7 @@ export function ProductForm({ product }) {
       ? {
           name: product.name, type: product.type, categoryId: product.categoryId ?? '',
           salesPrice: product.salesPrice, cost: product.cost, gstRate: product.gstRate,
-          trackInventory: product.trackInventory,
+          trackInventory: product.trackInventory, image: product.image ?? null,
         }
       : emptyForm,
   )
@@ -85,6 +86,15 @@ export function ProductForm({ product }) {
         </div>
 
         <FormSection>
+          <FormField label="Photo" className="mb-4">
+            <ImageUpload
+              value={form.image}
+              onChange={(v) => setForm((f) => ({ ...f, image: v }))}
+              disabled={readOnly}
+              label={form.name || 'Product'}
+            />
+          </FormField>
+
           <FormGrid>
             <FormField label="Name" required error={errors.name} className="sm:col-span-2">
               <TextInput value={form.name} onChange={set('name')} disabled={readOnly} required />

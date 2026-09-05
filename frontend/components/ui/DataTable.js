@@ -30,6 +30,8 @@ export function DataTable({
   total,
   onPageChange,
   exportCsv,
+  view = 'list',
+  renderCard,
 }) {
   const [sort, setSort] = useState(null) // { key, dir }
 
@@ -84,6 +86,26 @@ export function DataTable({
       ) : sortedRows.length === 0 ? (
         <div className="p-4">
           <EmptyState title={emptyTitle} action={emptyAction} onAction={onEmptyAction} />
+        </div>
+      ) : view === 'kanban' && renderCard ? (
+        <div className="flex-1 overflow-auto p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {sortedRows.map((row) => (
+              <div
+                key={getRowKey(row)}
+                onClick={() => onRowClick?.(row)}
+                role={onRowClick ? 'button' : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onRowClick(row) : undefined}
+                className={clsx(
+                  'rounded border border-line bg-surface-sheet p-3 transition-colors duration-150',
+                  onRowClick && 'cursor-pointer hover:border-secondary hover:bg-surface-hover',
+                )}
+              >
+                {renderCard(row)}
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <>
