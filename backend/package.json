@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Urban Furniture Accounting System — API, general ledger, inventory valuation, multi-currency",
+  "description": "Urban Furniture Accounting System \u2014 API, general ledger, inventory valuation, multi-currency",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -15,7 +15,11 @@
     "seed": "node src/db/seed.js",
     "snapshot": "node src/db/snapshot.js dump",
     "restore": "node src/db/snapshot.js restore",
-    "verify": "node src/db/verify.js"
+    "verify": "node src/db/verify-ledger.js && node src/db/verify-voucher.js && node src/db/verify-documents.js",
+    "verify:ledger": "node src/db/verify-ledger.js",
+    "verify:voucher": "node src/db/verify-voucher.js",
+    "verify:documents": "node src/db/verify-documents.js",
+    "verify:api": "node src/db/verify-api.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
