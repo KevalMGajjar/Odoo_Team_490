@@ -51,7 +51,7 @@ export function DebitCreditGrid({ items, onChange, disabled }) {
           </thead>
           <tbody>
             {items.map((item, idx) => (
-              <tr key={item._key} className="border-b border-line last:border-b-0">
+              <tr key={item._key ?? item.id ?? idx} className="border-b border-line last:border-b-0">
                 <Td>
                   <SearchSelect
                     path="/accounts"
