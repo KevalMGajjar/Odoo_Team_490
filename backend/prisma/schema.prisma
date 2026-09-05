@@ -26,6 +26,10 @@ datasource db {
 enum Role {
   admin
   invoicing_user
+  /// Read-only internal access. Intended for the companion view-only app:
+  /// sees everything an invoicing user sees, but is in no write role, so a
+  /// leaked token cannot mutate the ledger.
+  viewer
   contact
 }
 

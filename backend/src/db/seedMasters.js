@@ -203,13 +203,17 @@ export async function seedMasters(tx, { log = () => {} } = {}) {
   users.accountant = await tx.user.create({
     data: { name: 'Priya Desai', email: 'accountant@urbanfurniture.com', password: hash, role: 'invoicing_user' },
   })
+  // read-only account for the companion view-only app
+  users.viewer = await tx.user.create({
+    data: { name: 'Companion App', email: 'viewer@urbanfurniture.com', password: hash, role: 'viewer' },
+  })
   users.portal = await tx.user.create({
     data: {
       name: 'Nimesh Pathak', email: 'nimesh@example.com', password: hash,
       role: 'contact', contactId: contacts['Nimesh Pathak'].id,
     },
   })
-  log(`  users             3  (admin / invoicing_user / contact)`)
+  log(`  users             4  (admin / invoicing_user / viewer / contact)`)
 
   // ── budgets ──
   const budgets = []

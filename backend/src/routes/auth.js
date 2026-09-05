@@ -35,8 +35,11 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
       return created
     })
 
-    setAuthCookie(res, signToken(user))
-    res.status(201).json({ user: publicUser(user) })
+    const token = signToken(user)
+    setAuthCookie(res, token)
+    // The token is also returned in the body so non-browser clients (the
+    // companion view-only app) can hold it and send `Authorization: Bearer`.
+    res.status(201).json({ user: publicUser(user), token })
   } catch (err) { next(err) }
 })
 
@@ -52,8 +55,11 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     }
     if (user.status === 'archived') throw unauthorized('This account has been deactivated')
 
-    setAuthCookie(res, signToken(user))
-    res.json({ user: publicUser(user) })
+    const token = signToken(user)
+    setAuthCookie(res, token)
+    // Browser clients use the httpOnly cookie and can ignore `token`.
+    // Native / other-origin clients store it and send `Authorization: Bearer <token>`.
+    res.json({ user: publicUser(user), token, expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
   } catch (err) { next(err) }
 })
 

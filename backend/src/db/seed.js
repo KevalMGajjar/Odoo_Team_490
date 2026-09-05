@@ -22,7 +22,19 @@ import { D, money, lineTax } from '../lib/money.js'
 
 const log = (m) => console.log(m)
 const money2 = (v) => money(v).toFixed(2)
-const day = (s) => new Date(`${s}T00:00:00Z`)
+
+/**
+ * Demo data is anchored to the CURRENT Indian financial year (April–March), so
+ * reports open on a populated window whatever day the seed is run. Dates below
+ * are written as a reference year and shifted; nothing is ever future-dated.
+ */
+const TODAY = new Date()
+const FY_START_YEAR = TODAY.getUTCMonth() >= 3 ? TODAY.getUTCFullYear() : TODAY.getUTCFullYear() - 1
+
+const day = (s) => {
+  const d = new Date(`${s.replace(/^\d{4}/, String(FY_START_YEAR))}T00:00:00Z`)
+  return d > TODAY ? TODAY : d
+}
 
 async function truncateAll() {
   const rows = await prisma.$queryRaw`
@@ -86,7 +98,7 @@ async function main() {
 
   // ─────────────── purchases ───────────────
   const purchases = [
-    ['2025-04-08', 'Azure Furniture Pvt Ltd', [['Office Chair', 40, 2750], ['Study Desk', 20, 4300]]],
+    ['2025-04-08', 'Azure Furniture Pvt Ltd', [['Office Chair', 40, 2750], ['Study Desk', 32, 4300]]],
     ['2025-04-22', 'Rahul Sharma Timber',     [['Wooden Dining Table', 12, 11200], ['Coffee Table', 25, 3100]]],
     ['2025-05-09', 'Azure Furniture Pvt Ltd', [['Office Chair', 30, 2900], ['Ergonomic Mesh Chair', 15, 5500]]],
     ['2025-05-27', 'Kishan Auto Parts',       [['Bookshelf (5 Tier)', 30, 4050], ['Shoe Cabinet', 20, 2450]]],
@@ -101,7 +113,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const bill = await tx.vendorBill.create({
         data: {
-          number: `BILL/2025/${String(n).padStart(4, '0')}`,
+          number: `BILL/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
           vendorId: C[vendorName].id,
           billDate: day(date),
           dueDate: day(date.replace(/^(\d{4})-(\d{2})/, (_, y, mth) => `${y}-${String(Number(mth) + 1).padStart(2, '0')}`)),
@@ -115,15 +127,22 @@ async function main() {
   log(`  vendor bills      ${purchases.length}  (stock received, moving-average cost built)`)
 
   // ─────────────── sales ───────────────
+  // Sales volume is set so the business is genuinely profitable across the year —
+  // a demo that opens on a loss invites the wrong question.
   const sales = [
     ['2025-05-02', 'Nimesh Pathak',         [['Office Chair', 4], ['Delivery Service', 1]]],
     ['2025-05-18', 'Skyline Interiors LLP', [['Study Desk', 8], ['Office Chair', 8], ['Assembly Service', 1]]],
-    ['2025-06-05', 'Meera Joshi',           [['Wooden Dining Table', 1], ['Bar Stool', 4]]],
-    ['2025-06-19', 'Gateway Hotels Ltd',    [['Bedside Table', 20], ['Queen Bed Frame', 6], ['Delivery Service', 1]]],
+    ['2025-05-29', 'Gateway Hotels Ltd',    [['Bedside Table', 15], ['Study Desk', 6]]],
+    ['2025-06-05', 'Meera Joshi',           [['Wooden Dining Table', 2], ['Bar Stool', 8]]],
+    ['2025-06-19', 'Gateway Hotels Ltd',    [['Bedside Table', 12], ['Queen Bed Frame', 6], ['Delivery Service', 1]]],
+    ['2025-06-27', 'Skyline Interiors LLP', [['Office Chair', 14], ['Coffee Table', 8], ['Assembly Service', 1]]],
     ['2025-07-02', 'Skyline Interiors LLP', [['Ergonomic Mesh Chair', 10], ['Coffee Table', 6]]],
-    ['2025-07-15', 'Nimesh Pathak',         [['Bookshelf (5 Tier)', 2], ['Shoe Cabinet', 1]]],
-    ['2025-07-28', 'Meera Joshi',           [['3-Seater Fabric Sofa', 1], ['Assembly Service', 1]]],
+    ['2025-07-15', 'Nimesh Pathak',         [['Bookshelf (5 Tier)', 4], ['Shoe Cabinet', 3]]],
+    ['2025-07-24', 'Gateway Hotels Ltd',    [['Wooden Dining Table', 4], ['Bar Stool', 16], ['Delivery Service', 1]]],
+    ['2025-07-28', 'Meera Joshi',           [['3-Seater Fabric Sofa', 2], ['Assembly Service', 1]]],
     ['2025-08-06', 'Gateway Hotels Ltd',    [['Wardrobe (3 Door)', 3], ['Office Chair', 12]]],
+    ['2025-08-14', 'Skyline Interiors LLP', [['Bookshelf (5 Tier)', 12], ['Study Desk', 6], ['Assembly Service', 1]]],
+    ['2025-08-22', 'Meera Joshi',           [['Coffee Table', 5], ['Bedside Table', 6]]],
   ]
 
   const invoiceIds = []
@@ -133,7 +152,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const inv = await tx.customerInvoice.create({
         data: {
-          number: `INV/2025/${String(n).padStart(4, '0')}`,
+          number: `INV/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
           customerId: C[customerName].id,
           invoiceDate: day(date),
           dueDate: day(date),
@@ -157,7 +176,7 @@ async function main() {
     })
     const inv = await tx.customerInvoice.create({
       data: {
-        number: 'INV/2025/0009',
+        number: `INV/${FY_START_YEAR}/0099`,
         customerId: C['Vertex Trading FZE'].id,
         invoiceDate: day('2025-07-20'),
         dueDate: day('2025-08-19'),
@@ -170,7 +189,7 @@ async function main() {
     // settled later at a better rate → realised exchange gain
     const pay = await tx.payment.create({
       data: {
-        number: 'PAY/2025/0090', direction: 'inbound', partnerId: C['Vertex Trading FZE'].id,
+        number: `PAY/${FY_START_YEAR}/0090`, direction: 'inbound', partnerId: C['Vertex Trading FZE'].id,
         journalId: J.BNK.id, paymentDate: day('2025-08-12'), currencyId: CUR.USD.id,
         amount: posted.total.toString(),
         allocations: { create: [{ invoiceId: posted.id, amount: posted.total.toString() }] },
@@ -192,7 +211,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const pay = await tx.payment.create({
         data: {
-          number: `PAY/2025/${String(n).padStart(4, '0')}`,
+          number: `PAY/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
           direction: 'inbound', partnerId: inv.customerId,
           journalId: idx % 2 === 0 ? J.BNK.id : J.CSH.id,
           paymentDate: day(inv.date), currencyId: CUR.INR.id,
@@ -216,7 +235,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const pay = await tx.payment.create({
         data: {
-          number: `PAY/2025/${String(100 + n).padStart(4, '0')}`,
+          number: `PAY/${FY_START_YEAR}/${String(100 + n).padStart(4, '0')}`,
           direction: 'outbound', partnerId: bill.vendorId,
           journalId: J.BNK.id, paymentDate: bill.dueDate ?? bill.billDate,
           currencyId: CUR.INR.id, amount: bill.total.toString(),
@@ -233,8 +252,8 @@ async function main() {
     ['BPayment', '2025-05-31', A['1010'].id, A['5100'].id, 45000,  'RENT-05', 'Showroom rent — May 2025',       AN['Showroom Operations'].id],
     ['BPayment', '2025-06-30', A['1010'].id, A['5100'].id, 45000,  'RENT-06', 'Showroom rent — June 2025',      AN['Showroom Operations'].id],
     ['BPayment', '2025-07-31', A['1010'].id, A['5100'].id, 45000,  'RENT-07', 'Showroom rent — July 2025',      AN['Showroom Operations'].id],
-    ['BPayment', '2025-05-31', A['1010'].id, A['5200'].id, 182000, 'SAL-05',  'Staff salaries — May 2025',      AN['Showroom Operations'].id],
-    ['BPayment', '2025-06-30', A['1010'].id, A['5200'].id, 182000, 'SAL-06',  'Staff salaries — June 2025',     AN['Showroom Operations'].id],
+    ['BPayment', '2025-05-31', A['1010'].id, A['5200'].id, 140000, 'SAL-05',  'Staff salaries — May 2025',      AN['Showroom Operations'].id],
+    ['BPayment', '2025-06-30', A['1010'].id, A['5200'].id, 140000, 'SAL-06',  'Staff salaries — June 2025',     AN['Showroom Operations'].id],
     ['CPayment', '2025-06-14', A['1000'].id, A['5300'].id, 8600,   'FRT-11',  'Local delivery charges',         AN['Logistics'].id],
     ['CPayment', '2025-07-09', A['1000'].id, A['5300'].id, 12400,  'FRT-12',  'Outstation freight — Mumbai',    AN['Logistics'].id],
     ['CReceipt', '2025-07-18', A['1000'].id, A['4100'].id, 15000,  'MISC-01', 'Scrap timber sale',              null],

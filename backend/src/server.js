@@ -10,8 +10,11 @@ import { prisma } from './lib/prisma.js'
 import { decimalReplacer } from './lib/money.js'
 import { initRealtime } from './lib/realtime.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
+import swaggerUi from 'swagger-ui-express'
 import authRoutes from './routes/auth.js'
 import masterRoutes from './routes/masters.js'
+import reportRoutes from './routes/reports.js'
+import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
 for (const key of ['JWT_SECRET', 'DATABASE_URL']) {
@@ -24,10 +27,35 @@ for (const key of ['JWT_SECRET', 'DATABASE_URL']) {
 const PORT = Number(process.env.PORT || 4000)
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000'
 
+/**
+ * Allowed browser origins. The web app plus any companion clients — set
+ * CORS_ORIGINS as a comma-separated list. Native apps send no Origin header
+ * and are unaffected by CORS entirely; they authenticate with a bearer token.
+ */
+const ALLOWED_ORIGINS = [
+  FRONTEND_URL,
+  ...(process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+]
+
 const app = express()
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
-app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+app.use(cors({
+  origin(origin, cb) {
+    // no Origin = native app, curl, or same-origin — always allowed
+    if (!origin) return cb(null, true)
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
+    // dev convenience: any localhost port, so a teammate can run on 5173, 8081, …
+    if (process.env.NODE_ENV === 'development' && /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(origin)) {
+      return cb(null, true)
+    }
+    return cb(new Error(`Origin ${origin} is not allowed by CORS`))
+  },
+  credentials: true,
+}))
 app.use(express.json({ limit: '25mb' })) // headroom for OCR uploads
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
@@ -76,16 +104,38 @@ app.get('/health', async (req, res) => {
   })
 })
 
+// ──────────────────────── API documentation ────────────────────────
+const openApiDocument = buildOpenApiDocument({ port: PORT })
+
+app.get('/openapi.json', (req, res) => res.json(openApiDocument))
+
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument, {
+  customSiteTitle: 'Urban Furniture API',
+  swaggerOptions: { persistAuthorization: true, docExpansion: 'none', tagsSorter: 'alpha' },
+  // Odoo plum, so the docs look like part of the product
+  customCss: `
+    .swagger-ui .topbar { display: none }
+    .swagger-ui .info .title { color: #714B67 }
+    .swagger-ui .btn.authorize { border-color: #714B67; color: #714B67 }
+    .swagger-ui .btn.authorize svg { fill: #714B67 }
+    .swagger-ui .opblock.opblock-post .opblock-summary-method { background: #714B67 }
+    .swagger-ui .opblock.opblock-get .opblock-summary-method { background: #017E84 }
+  `,
+}))
+
 app.get('/', (req, res) => {
   res.json({
     service: 'Urban Furniture — Accounting System API',
     version: '1.0.0',
-    docs: '/health for dependency status',
+    docs: `http://localhost:${PORT}/docs`,
+    openapi: `http://localhost:${PORT}/openapi.json`,
+    health: `http://localhost:${PORT}/health`,
   })
 })
 
 // ─────────────────────────── routes ───────────────────────────
 app.use('/auth', authRoutes)
+app.use('/reports', reportRoutes)
 app.use('/', masterRoutes)
 
 app.use(notFoundHandler)
