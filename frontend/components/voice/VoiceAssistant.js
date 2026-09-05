@@ -11,26 +11,29 @@ import { isSpeechSupported, listenOnce, speak, cancelSpeech } from '@/lib/speech
 const EXAMPLES = [
   'Open the balance sheet for financial year 2025-2026',
   'Show profit and loss for last month',
+  'How can I make a new sales invoice?',
   'Show unpaid invoices',
-  'Bills from Kishan Auto Parts',
-  'Open the budget report for this quarter',
+  'What can you do?',
 ]
 
 /**
- * Read-only voice navigation.
+ * Voice/chat navigation.
  *
  * The assistant can only ever open a screen: the server matches speech against
- * a fixed allowlist of view routes and returns one of them, so a misheard
- * command opens the wrong report at worst — it can never create or change a
- * record, and it never states a figure. Every number the user reads comes from
- * the screen itself, fetched normally from the database.
+ * a fixed allowlist of routes and returns one, so a misheard command opens the
+ * wrong screen at worst. Some of those routes are blank "new document" forms —
+ * opening one saves nothing, the user still fills it in and presses save. The
+ * assistant never states a figure either; every number comes from the screen
+ * itself, fetched normally from the database.
  */
 export function VoiceAssistant({ open, onClose }) {
   const router = useRouter()
   const [phase, setPhase] = useState('idle') // idle | listening | thinking | done
   const [transcript, setTranscript] = useState('')
-  const [message, setMessage] = useState(null) // { tone: 'error'|'info', text }
   const [typed, setTyped] = useState('')
+  // Kept across opens so repeat use reads like a conversation. Session-only —
+  // nothing here is persisted.
+  const [history, setHistory] = useState([]) // { you, reply, tone }
   const sessionRef = useRef(null)
   const supported = isSpeechSupported()
 
@@ -40,7 +43,6 @@ export function VoiceAssistant({ open, onClose }) {
     cancelSpeech()
     setPhase('idle')
     setTranscript('')
-    setMessage(null)
     setTyped('')
   }, [])
 
@@ -55,17 +57,28 @@ export function VoiceAssistant({ open, onClose }) {
     if (!command) return
     setTranscript(command)
     setPhase('thinking')
-    setMessage(null)
     try {
       const res = await api.post('/voice/interpret', { transcript: command })
+
       if (!res.ok) {
         setPhase('idle')
-        setMessage({ tone: 'error', text: res.clarify })
+        setTranscript('')
+        setHistory((h) => [...h, { you: command, reply: res.clarify, tone: 'error' }])
         speak(res.clarify)
         return
       }
+
+      // HELP and similar answer in the panel without navigating.
+      if (!res.route) {
+        setPhase('idle')
+        setTranscript('')
+        setHistory((h) => [...h, { you: command, reply: res.answer, tone: 'info' }])
+        return
+      }
+
       setPhase('done')
-      setMessage({ tone: 'info', text: res.spoken })
+      setTranscript('')
+      setHistory((h) => [...h, { you: command, reply: res.spoken, tone: 'info' }])
       speak(res.spoken)
 
       const query = new URLSearchParams(
@@ -75,19 +88,19 @@ export function VoiceAssistant({ open, onClose }) {
       onClose()
     } catch (err) {
       setPhase('idle')
+      setTranscript('')
       const text = err instanceof ApiError ? err.message : 'Could not reach the assistant.'
-      setMessage({ tone: 'error', text })
+      setHistory((h) => [...h, { you: command, reply: text, tone: 'error' }])
     }
   }, [router, onClose])
 
   const startListening = useCallback(() => {
-    setMessage(null)
     setTranscript('')
     setPhase('listening')
     sessionRef.current = listenOnce({
       onInterim: setTranscript,
       onResult: (text) => interpret(text),
-      onError: (text) => { setPhase('idle'); setMessage({ tone: 'error', text }) },
+      onError: (text) => { setPhase('idle'); setHistory((h) => [...h, { you: '🎤', reply: text, tone: 'error' }]) },
       onEnd: () => { sessionRef.current = null; setPhase((p) => (p === 'listening' ? 'idle' : p)) },
     })
   }, [interpret])
@@ -104,7 +117,7 @@ export function VoiceAssistant({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="Voice Assistant" size="md">
       <div className="space-y-4">
         <p className="text-xs text-ink-muted">
-          Ask to see something — the assistant opens the screen. It can only view data, never create or change records.
+          Ask for a screen or how to do something — the assistant opens it for you. It never saves or changes anything itself.
         </p>
 
         {supported ? (
@@ -154,17 +167,24 @@ export function VoiceAssistant({ open, onClose }) {
           </button>
         </form>
 
-        {message && (
-          <div
-            className={clsx(
-              'flex items-start gap-2 rounded border px-3 py-2 text-sm',
-              message.tone === 'error'
-                ? 'border-state-overdue/30 bg-state-overdue/5 text-state-overdue'
-                : 'border-state-info/30 bg-state-info/5 text-state-info',
-            )}
-          >
-            {message.tone === 'error' && <AlertCircle size={14} className="mt-0.5 shrink-0" />}
-            <span>{message.text}</span>
+        {history.length > 0 && (
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded border border-line p-2">
+            {history.map((turn, i) => (
+              <div key={i} className="space-y-1">
+                <p className="text-right text-xs text-ink-muted">{turn.you}</p>
+                <div
+                  className={clsx(
+                    'flex items-start gap-2 rounded px-2.5 py-1.5 text-sm',
+                    turn.tone === 'error'
+                      ? 'bg-state-overdue/5 text-state-overdue'
+                      : 'bg-brand-light text-ink',
+                  )}
+                >
+                  {turn.tone === 'error' && <AlertCircle size={13} className="mt-0.5 shrink-0" />}
+                  <span className="whitespace-pre-line">{turn.reply}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

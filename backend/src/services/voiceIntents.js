@@ -10,9 +10,9 @@
  * turned into a clarifying question. The model never authors a route, a filter
  * value, or a number — it only chooses from what is written here.
  *
- * The assistant is READ-ONLY by construction: every route below is a screen
- * that displays existing data. There is no intent that creates, edits or posts
- * anything, so a misheard command can only ever open the wrong report.
+ * The assistant never changes data. Some routes below are blank "new document"
+ * forms — opening one creates nothing; the user still fills it in and presses
+ * save themselves. So a misheard command can only ever open the wrong screen.
  */
 
 /** Parameter kinds an intent may accept. Anything else is dropped. */
@@ -125,6 +125,53 @@ export const INTENTS = Object.freeze({
     params: [],
     describes: 'the list of analytical budgets',
   },
+
+  // ── master data ──
+  CONTACTS: { route: '/contacts', label: 'Contacts', params: [], describes: 'customers and vendors' },
+  PRODUCTS: { route: '/products', label: 'Products', params: [], describes: 'the product catalogue' },
+  PRODUCT_CATEGORIES: { route: '/product-categories', label: 'Product Categories', params: [], describes: 'product categories' },
+  CHART_OF_ACCOUNTS: { route: '/accounts', label: 'Chart of Accounts', params: [], describes: 'the chart of accounts / ledger accounts' },
+  JOURNALS: { route: '/journals', label: 'Journals', params: [], describes: 'accounting journals' },
+  TAXES: { route: '/taxes', label: 'Taxes', params: [], describes: 'tax rates / GST rates' },
+  CURRENCIES: { route: '/currencies', label: 'Currencies', params: [], describes: 'currencies and exchange rates' },
+  ANALYTIC_ACCOUNTS: { route: '/analytic-accounts', label: 'Analytic Accounts', params: [], describes: 'analytic / analytical accounts used for budgets' },
+  STOCK_MOVES: { route: '/stock-moves', label: 'Stock Moves', params: [], describes: 'stock movements in and out' },
+  STOCK_ADJUSTMENTS: { route: '/stock-adjustments', label: 'Stock Adjustments', params: [], describes: 'stock adjustment documents' },
+  DASHBOARD: { route: '/dashboard', label: 'Dashboard', params: [], describes: 'the home dashboard overview' },
+
+  /**
+   * Blank entry forms — for "how do I make a…" questions.
+   *
+   * `creates: true` only means the form is where a record gets made; opening
+   * it saves nothing. It marks these so the confirmation says "here's the
+   * form" rather than implying something was created.
+   */
+  NEW_SALES_INVOICE: { route: '/invoices/new', label: 'New Customer Invoice', params: [], creates: true, describes: 'make/create a new sales invoice or customer invoice' },
+  NEW_VENDOR_BILL: { route: '/bills/new', label: 'New Vendor Bill', params: [], creates: true, describes: 'make/create a new vendor bill or purchase bill' },
+  NEW_PURCHASE_ORDER: { route: '/purchase-orders/new', label: 'New Purchase Order', params: [], creates: true, describes: 'make/create a new purchase order' },
+  NEW_SALES_ORDER: { route: '/sales-orders/new', label: 'New Sales Order', params: [], creates: true, describes: 'make/create a new sales order' },
+  NEW_CONTACT: { route: '/contacts/new', label: 'New Contact', params: [], creates: true, describes: 'add a new customer, vendor or contact' },
+  NEW_PRODUCT: { route: '/products/new', label: 'New Product', params: [], creates: true, describes: 'add a new product or item' },
+  NEW_JOURNAL_ENTRY: { route: '/journal-entries/new', label: 'New Journal Entry', params: [], creates: true, describes: 'make a new manual journal entry' },
+  NEW_BUDGET: { route: '/budgets/new', label: 'New Budget', params: [], creates: true, describes: 'create a new budget' },
+  NEW_ANALYTIC_ACCOUNT: { route: '/analytic-accounts/new', label: 'New Analytic Account', params: [], creates: true, describes: 'create a new analytic account' },
+  NEW_ACCOUNT: { route: '/accounts/new', label: 'New Account', params: [], creates: true, describes: 'add a new ledger account to the chart of accounts' },
+  NEW_STOCK_ADJUSTMENT: { route: '/stock-adjustments/new', label: 'New Stock Adjustment', params: [], creates: true, describes: 'make a stock adjustment' },
+  NEW_BANK_RECEIPT: { route: '/vouchers/bank-receipt', label: 'Bank Receipt Voucher', params: [], creates: true, describes: 'record money received into the bank' },
+  NEW_BANK_PAYMENT: { route: '/vouchers/bank-payment', label: 'Bank Payment Voucher', params: [], creates: true, describes: 'record money paid out of the bank' },
+  NEW_CASH_RECEIPT: { route: '/vouchers/cash-receipt', label: 'Cash Receipt Voucher', params: [], creates: true, describes: 'record cash received' },
+  NEW_CASH_PAYMENT: { route: '/vouchers/cash-payment', label: 'Cash Payment Voucher', params: [], creates: true, describes: 'record cash paid out' },
+  NEW_JOURNAL_VOUCHER: { route: '/vouchers/journal', label: 'Journal Voucher', params: [], creates: true, describes: 'make a journal voucher' },
+
+  // ── admin-only screens ──
+  USERS: { route: '/users', label: 'Users', params: [], requiresRole: 'admin', describes: 'user accounts and access' },
+  NEW_USER: { route: '/users/new', label: 'New User', params: [], creates: true, requiresRole: 'admin', describes: 'create a new user account' },
+  AUDIT_LOG: { route: '/audit', label: 'Audit Log', params: [], requiresRole: 'admin', describes: 'the audit trail of who changed what' },
+  ODOO_SYNC: { route: '/odoo-sync', label: 'Odoo Sync', params: [], requiresRole: 'admin', describes: 'Odoo synchronisation status' },
+  HEALTH: { route: '/health', label: 'System Health', params: [], requiresRole: 'admin', describes: 'system health checks' },
+
+  /** Answered in the panel instead of navigating anywhere. */
+  HELP: { route: null, label: 'Help', params: [], describes: 'what the assistant can do / what can I ask' },
 })
 
 export const INTENT_IDS = Object.freeze(Object.keys(INTENTS))
@@ -247,10 +294,16 @@ export function resolveAsOf(phrase, now = new Date()) {
  * { ok: false, reason } — the caller turns a failure into a clarifying
  * question. Nothing unvalidated ever reaches the browser.
  */
-export function validateIntent(raw, { now = new Date() } = {}) {
+export function validateIntent(raw, { now = new Date(), role = null } = {}) {
   const id = typeof raw?.intent === 'string' ? raw.intent.trim().toUpperCase() : ''
   const spec = INTENTS[id]
   if (!spec) return { ok: false, reason: 'unknown_intent' }
+
+  // Never route someone to a screen their role can't load — they'd land on a
+  // 403 with no idea why.
+  if (spec.requiresRole && role !== spec.requiresRole) {
+    return { ok: false, reason: 'forbidden_intent', label: spec.label }
+  }
 
   const params = {}
 
@@ -273,13 +326,27 @@ export function validateIntent(raw, { now = new Date() } = {}) {
     if (value && ENUMS[key].includes(value)) params[key] = value
   }
 
-  return { ok: true, intent: id, route: spec.route, label: spec.label, params }
+  return {
+    ok: true,
+    intent: id,
+    route: spec.route,
+    label: spec.label,
+    creates: Boolean(spec.creates),
+    params,
+  }
+}
+
+/** Intent ids this role is allowed to reach. */
+export function intentIdsForRole(role) {
+  return INTENT_IDS.filter((id) => !INTENTS[id].requiresRole || INTENTS[id].requiresRole === role)
 }
 
 /** Compact catalog text injected into the prompt, generated from the table
- *  above so the prompt can never drift out of sync with the allowlist. */
-export function catalogForPrompt() {
-  return INTENT_IDS
+ *  above so the prompt can never drift out of sync with the allowlist.
+ *  Filtered by role so the model is never even shown screens this user
+ *  couldn't open. */
+export function catalogForPrompt(role) {
+  return intentIdsForRole(role)
     .map((id) => `- ${id}: ${INTENTS[id].label} — ${INTENTS[id].describes}`)
     .join('\n')
 }

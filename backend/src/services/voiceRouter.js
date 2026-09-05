@@ -1,4 +1,4 @@
-import { INTENT_IDS, catalogForPrompt, validateIntent } from './voiceIntents.js'
+import { catalogForPrompt, intentIdsForRole, validateIntent } from './voiceIntents.js'
 
 /**
  * VOICE ASSISTANT — SPEECH → SCREEN ROUTER
@@ -17,15 +17,15 @@ import { INTENT_IDS, catalogForPrompt, validateIntent } from './voiceIntents.js'
 
 const TIMEOUT_MS = 12000
 
-const buildPrompt = () => `You route spoken commands in an accounting app to the correct READ-ONLY screen.
+const buildPrompt = (role) => `You route spoken commands in an accounting app to the correct screen.
 
 You never answer questions, never state figures, and never invent data. You only choose which screen to open.
 
 Choose exactly one intent from this list:
-${catalogForPrompt()}
+${catalogForPrompt(role)}
 
 Return JSON with these keys:
-- "intent": one of ${INTENT_IDS.join(', ')}, or "NONE" if the request does not clearly match one screen.
+- "intent": one of ${intentIdsForRole(role).join(', ')}, or "NONE" if the request does not clearly match one screen.
 - "period": the time period the user asked for, expressed ONLY as one of these tokens:
   today, yesterday, this_week, last_7_days, this_month, last_month, last_30_days,
   this_quarter, last_quarter, this_year, last_year, this_fy, last_fy,
@@ -42,8 +42,14 @@ Rules:
 - "receipts" / "money received" means PAYMENTS_RECEIVED; "payments made" / "money paid out" means PAYMENTS_MADE.
 - "what do customers owe me" / "outstanding invoices" means INVOICES with settleState not_paid.
 - "what do I owe" / "unpaid bills" means BILLS with settleState not_paid.
-- If the request is vague, off-topic, or asks to CREATE/EDIT/DELETE anything, return intent "NONE" with confidence 0.
-- This assistant can only view data. It can never create or change records.
+- A "how do I…" / "how can I…" / "where do I…" / "make a…" / "create a…" / "add a…" request means the
+  matching NEW_* intent — it opens the blank form so the user can fill it in. Example:
+  "how can I make a new sales invoice" means NEW_SALES_INVOICE.
+- Distinguish viewing from creating: "show me invoices" means INVOICES, but
+  "make an invoice" means NEW_SALES_INVOICE.
+- "what can you do", "help", "what can I ask" means HELP.
+- Deleting, editing or posting an existing record is not supported: return "NONE".
+- If the request is vague or off-topic, return intent "NONE" with confidence 0.
 
 Respond with JSON only.`
 
@@ -53,7 +59,7 @@ export function isVoiceRoutingConfigured() {
   return process.env.AI_ENABLED === 'true' && Boolean(process.env.AI_BASE_URL)
 }
 
-async function callModel(transcript) {
+async function callModel(transcript, role) {
   const base = (process.env.AI_BASE_URL ?? '').replace(/\/$/, '')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -72,7 +78,7 @@ async function callModel(transcript) {
         temperature: 0,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: buildPrompt() },
+          { role: 'system', content: buildPrompt(role) },
           { role: 'user', content: transcript },
         ],
       }),
@@ -124,10 +130,10 @@ function explainFailure(err) {
  * It never throws for a bad model response; an unusable answer becomes a
  * clarifying question, because guessing a screen is worse than asking.
  */
-export async function routeTranscript(transcript, { now = new Date() } = {}) {
+export async function routeTranscript(transcript, { now = new Date(), role = null } = {}) {
   let raw
   try {
-    raw = await callModel(transcript)
+    raw = await callModel(transcript, role)
   } catch (err) {
     console.error('[voice] model call failed:', err.message)
     return { ok: false, clarify: explainFailure(err) }
@@ -149,14 +155,13 @@ export async function routeTranscript(transcript, { now = new Date() } = {}) {
     return { ok: false, clarify: `I wasn't sure what you meant. Could you rephrase that?` }
   }
 
-  const checked = validateIntent(raw, { now })
+  const checked = validateIntent(raw, { now, role })
   if (!checked.ok) {
-    return {
-      ok: false,
-      clarify: checked.reason === 'unparseable_period'
-        ? 'I understood the screen but not the time period. Try naming it plainly, like "last month" or "financial year 2025-2026".'
-        : 'I can only open screens that show your data. Try "open the profit and loss for last month".',
-    }
+    const clarify = {
+      unparseable_period: 'I understood the screen but not the time period. Try naming it plainly, like "last month" or "financial year 2025-2026".',
+      forbidden_intent: `${checked.label} is only available to administrators.`,
+    }[checked.reason] ?? 'I can only open screens in this app. Try "open the profit and loss for last month" or "how do I make a sales invoice".'
+    return { ok: false, clarify }
   }
 
   return {

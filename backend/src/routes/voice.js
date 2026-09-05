@@ -57,6 +57,16 @@ async function resolvePartner(name) {
   return { ok: true, partner: matches[0] }
 }
 
+const helpText = (role) => [
+  'I open screens for you — I never create or change anything myself.',
+  '',
+  'Reports: "open the balance sheet for financial year 2025-2026", "profit and loss for last month", "trial balance", "budget report for this quarter".',
+  'Documents: "show unpaid invoices", "bills from Kishan Auto Parts", "purchase orders", "payments received".',
+  'Forms: "how do I make a sales invoice", "add a new product", "create a purchase order" — I open the blank form for you to fill in.',
+  'Masters: "show contacts", "open the chart of accounts", "products".',
+  role === 'admin' ? 'Admin: "open users", "show the audit log", "odoo sync".' : '',
+].filter(Boolean).join('\n')
+
 /**
  * POST /voice/interpret  { transcript }
  *
@@ -79,8 +89,13 @@ router.post('/interpret', verifyJWT, internalOnly, async (req, res, next) => {
       })
     }
 
-    const routed = await routeTranscript(transcript.trim())
+    const routed = await routeTranscript(transcript.trim(), { role: req.user.role })
     if (!routed.ok) return res.json(routed)
+
+    // HELP answers in the panel rather than navigating anywhere.
+    if (routed.intent === 'HELP') {
+      return res.json({ ok: true, answer: helpText(req.user.role) })
+    }
 
     const params = { ...routed.params }
     let spokenSuffix = ''
@@ -104,13 +119,20 @@ router.post('/interpret', verifyJWT, internalOnly, async (req, res, next) => {
     if (params.from && params.to) spokenSuffix += ` from ${params.from} to ${params.to}`
     else if (params.asOf) spokenSuffix += ` as at ${params.asOf}`
 
+    // Say plainly that a blank form was opened, so nobody reads "New Invoice"
+    // as "an invoice was created".
+    const spoken = routed.creates
+      ? `Here's the ${routed.label} form — fill it in and save to create it.`
+      : `Opening ${routed.label}${spokenSuffix}`
+
     res.json({
       ok: true,
       intent: routed.intent,
       route: routed.route,
       label: routed.label,
+      creates: routed.creates,
       params,
-      spoken: `Opening ${routed.label}${spokenSuffix}`,
+      spoken,
     })
   } catch (err) { next(err) }
 })
