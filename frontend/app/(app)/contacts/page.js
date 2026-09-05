@@ -9,6 +9,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { useApiList } from '@/lib/useApi'
+import { assetUrl } from '@/lib/api'
 import { useAuth, canWrite } from '@/lib/auth'
 
 const TYPE_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & Vendor' }
@@ -20,7 +21,7 @@ const VIEW_OPTIONS = [
 function Avatar({ contact, size = 20 }) {
   if (contact.profileImage) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={contact.profileImage} alt={contact.name} className="rounded-full object-cover" style={{ width: size, height: size }} />
+    return <img src={assetUrl(contact.profileImage)} alt={contact.name} className="rounded-full object-cover" style={{ width: size, height: size }} />
   }
   const Icon = contact.type === 'vendor' ? Building2 : User
   return <Icon size={size * 0.7} className="text-ink-faint" />

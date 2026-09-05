@@ -5,12 +5,13 @@ import { Image as ImageIcon, Upload, X } from 'lucide-react'
 import clsx from 'clsx'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import { api, ApiError, assetUrl } from '@/lib/api'
 
 const MAX_DIMENSION = 320
 const JPEG_QUALITY = 0.82
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024 // reject absurdly large uploads before we even try to decode them
 
-function resizeToDataUrl(file) {
+function resizeToBlob(file) {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
     const reader = new FileReader()
@@ -25,7 +26,13 @@ function resizeToDataUrl(file) {
         canvas.width = w
         canvas.height = h
         canvas.getContext('2d').drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY))
+        // A Blob rather than a data URI: it's uploaded as multipart, and
+        // base64 would inflate the transfer by about a third for no benefit.
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode image'))),
+          'image/jpeg',
+          JPEG_QUALITY,
+        )
       }
       img.src = reader.result
     }
@@ -34,9 +41,15 @@ function resizeToDataUrl(file) {
 }
 
 /**
- * A thumbnail + Upload/Remove pair. Value is a JPEG data URI stored directly
- * on the record (no separate file storage) — client-side resize to
- * MAX_DIMENSION keeps that column small regardless of what the user picked.
+ * A thumbnail + Upload/Remove pair.
+ *
+ * The value is a URL into the file store. Images used to be kept as base64 on
+ * the record itself, which meant every list request carried its thumbnails.
+ * Existing records may still hold a `data:` URI, and those keep rendering —
+ * an <img> treats both the same.
+ *
+ * The client still resizes to MAX_DIMENSION before uploading, so the stored
+ * file is a thumbnail regardless of what the user picked.
  */
 export function ImageUpload({ value, onChange, disabled, shape = 'square', label = 'Image' }) {
   const inputRef = useRef(null)
@@ -59,10 +72,15 @@ export function ImageUpload({ value, onChange, disabled, shape = 'square', label
     }
     setBusy(true)
     try {
-      const dataUrl = await resizeToDataUrl(file)
-      onChange(dataUrl)
-    } catch {
-      push('Could not process that image', { type: 'error' })
+      const blob = await resizeToBlob(file)
+      const form = new FormData()
+      form.append('file', blob, 'upload.jpg')
+      // Stored on disk and referenced by URL, so the image no longer travels
+      // inside every read of the record it belongs to.
+      const { url } = await api.upload('/files', form)
+      onChange(url)
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : 'Could not process that image', { type: 'error' })
     } finally {
       setBusy(false)
     }
@@ -78,7 +96,7 @@ export function ImageUpload({ value, onChange, disabled, shape = 'square', label
       >
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt={label} className="h-full w-full object-cover" />
+          <img src={assetUrl(value)} alt={label} className="h-full w-full object-cover" />
         ) : (
           <ImageIcon size={20} className="text-ink-faint" />
         )}

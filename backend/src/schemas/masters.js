@@ -15,10 +15,24 @@ const name = (min = 2, max = 120) =>
 const optionalText = (max = 200) =>
   z.string().trim().max(max).optional().nullable().or(z.literal('').transform(() => null))
 
-// Client resizes to 320px JPEG before upload, so a 400K-char cap (~300KB
-// decoded) is generous headroom, not a real limit anyone should hit.
+/**
+ * A reference to an uploaded image.
+ *
+ * New values are file-store paths (`/files/ab/cd/<sha256>.jpg`) produced by
+ * POST /files. Records written before the file store existed still hold a
+ * base64 `data:` URI, so those are accepted on the way in — otherwise editing
+ * an old contact's phone number would fail validation on a field the user
+ * never touched. Nothing writes a new one — the length cap only ever
+ * applies to those legacy values, since a path is 80 characters.
+ */
+const FILE_PATH = /^\/files\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.(jpg|png|webp)$/
+const LEGACY_DATA_URI = /^data:image\/(jpeg|png|webp);base64,/
+
 const optionalImage = () =>
-  z.string().trim().max(400_000, 'Image is too large').optional().nullable().or(z.literal('').transform(() => null))
+  z.string().trim()
+    .max(400_000, 'Image is too large')
+    .refine((v) => FILE_PATH.test(v) || LEGACY_DATA_URI.test(v), 'Image must be uploaded first')
+    .optional().nullable().or(z.literal('').transform(() => null))
 
 const money = (label = 'Amount', max = 99_999_999) =>
   z.coerce.number({ invalid_type_error: `${label} must be a number` })

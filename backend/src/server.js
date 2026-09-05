@@ -22,6 +22,8 @@ import odooRoutes from './routes/odoo.js'
 import userRoutes from './routes/users.js'
 import budgetRoutes from './routes/budgets.js'
 import voiceRoutes from './routes/voice.js'
+import fileRoutes from './routes/files.js'
+import { STORAGE_ROOT, PUBLIC_PREFIX } from './services/fileStore.js'
 import { apiLimiter, authLimiter, writeLimiter } from './middleware/rateLimit.js'
 import { invalidateReportsOnWrite, cacheStats } from './lib/cache.js'
 import { breakerStats } from './lib/circuitBreaker.js'
@@ -172,6 +174,28 @@ app.use('/portal', portalRoutes)
 app.use('/odoo', odooRoutes)
 app.use('/users', userRoutes)
 app.use('/voice', voiceRoutes)
+app.use('/files', fileRoutes)
+
+/**
+ * Serve uploaded images.
+ *
+ * Deliberately not behind auth: the browser requests these through <img src>,
+ * which cannot attach an Authorization header, and the mobile app
+ * authenticates by bearer token rather than a cookie — so a protected route
+ * would simply show broken images there. Paths are the SHA-256 of the
+ * contents, so they are unguessable, and the files are product and contact
+ * thumbnails rather than financial records. Worth knowing rather than
+ * assuming: anyone holding a URL can fetch that image.
+ *
+ * `immutable` is safe precisely because the path is a content hash — the bytes
+ * at a given URL can never change.
+ */
+app.use(PUBLIC_PREFIX, express.static(STORAGE_ROOT, {
+  maxAge: '1y',
+  immutable: true,
+  index: false,
+  dotfiles: 'deny',
+}))
 app.use('/', budgetRoutes)
 app.use('/', stockRoutes)
 app.use('/', masterRoutes)

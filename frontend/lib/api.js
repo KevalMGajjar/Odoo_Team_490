@@ -75,7 +75,7 @@ async function idempotencyKeyFor(body) {
   return `${idempotencyNonce}:${hex}`
 }
 
-async function request(path, { method = 'GET', body, headers, idempotent = false, ...rest } = {}) {
+async function request(path, { method = 'GET', body, rawBody, headers, idempotent = false, ...rest } = {}) {
   const idempotencyHeader = idempotent ? { 'Idempotency-Key': await idempotencyKeyFor(body) } : {}
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -85,7 +85,7 @@ async function request(path, { method = 'GET', body, headers, idempotent = false
       ...idempotencyHeader,
       ...headers,
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(rawBody ? { body: rawBody } : body ? { body: JSON.stringify(body) } : {}),
     ...rest,
   })
 
@@ -109,6 +109,9 @@ export const api = {
   get: (path, params) => request(withQuery(path, params)),
   post: (path, body, opts = {}) => request(path, { method: 'POST', body, ...opts }),
   put: (path, body) => request(path, { method: 'PUT', body }),
+  /** Multipart upload. No Content-Type header — the browser must set the
+   *  multipart boundary itself, and providing one breaks the parse. */
+  upload: (path, formData) => request(path, { method: 'POST', rawBody: formData }),
   del: (path) => request(path, { method: 'DELETE' }),
   /** Raw text/CSV download — used by report export buttons. */
   raw: async (path, params) => {
@@ -116,6 +119,22 @@ export const api = {
     if (!res.ok) throw new ApiError('Export failed', res.status)
     return res.blob()
   },
+}
+
+/**
+ * Absolute URL for a stored file.
+ *
+ * The API returns file paths rooted at the backend (`/files/ab/cd/….jpg`), and
+ * the backend is a different origin from this app in every environment, so a
+ * bare `<img src>` would ask Next.js for a file it doesn't have.
+ *
+ * Records created before the file store still hold a `data:` URI; those, and
+ * any already-absolute URL, are passed straight through.
+ */
+export function assetUrl(value) {
+  if (!value) return value
+  if (/^(data:|blob:|https?:)/.test(value)) return value
+  return `${BASE}${value.startsWith('/') ? '' : '/'}${value}`
 }
 
 function withQuery(path, params) {

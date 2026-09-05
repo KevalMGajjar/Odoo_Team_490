@@ -9,6 +9,7 @@ import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { useApiList } from '@/lib/useApi'
+import { assetUrl } from '@/lib/api'
 import { useAuth, canWrite } from '@/lib/auth'
 import { formatMoney, formatNumber } from '@/lib/format'
 
@@ -20,7 +21,7 @@ const VIEW_OPTIONS = [
 function Thumb({ product, size = 20 }) {
   if (product.image) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={product.image} alt={product.name} className="rounded object-cover" style={{ width: size, height: size }} />
+    return <img src={assetUrl(product.image)} alt={product.name} className="rounded object-cover" style={{ width: size, height: size }} />
   }
   const Icon = product.type === 'service' ? Wrench : Package
   return <Icon size={size * 0.65} className="text-ink-faint" />
