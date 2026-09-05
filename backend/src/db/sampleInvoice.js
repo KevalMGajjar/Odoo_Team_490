@@ -44,15 +44,18 @@ const INVOICE = {
   poNumber: 'PO/2026/0007',
 }
 
-// Cost prices from the seed, so a matched product lines up with its real rate.
+// Cost prices AND GST rates from the seed, so a matched product lines up with
+// its real rate. The rates have to agree: the bill form takes each line's tax
+// from the product master, not from the document, so an invoice that applies a
+// blanket rate produces a bill whose total quietly differs from the vendor's.
+// Shoe Cabinet is a 12% good among 18% ones, which is what makes this worth
+// getting right rather than assuming.
 const ITEMS = [
-  { sno: 1, description: 'Bar Stool', hsn: '94036000', qty: 10, unit: 'pcs', rate: 1700 },
-  { sno: 2, description: 'Coffee Table', hsn: '94033000', qty: 4, unit: 'pcs', rate: 3200 },
-  { sno: 3, description: 'Wooden Dining Table', hsn: '94036000', qty: 3, unit: 'pcs', rate: 11500 },
-  { sno: 4, description: 'Shoe Cabinet', hsn: '94035000', qty: 6, unit: 'pcs', rate: 2500 },
+  { sno: 1, description: 'Bar Stool', hsn: '94036000', qty: 10, unit: 'pcs', rate: 1700, gst: 18 },
+  { sno: 2, description: 'Coffee Table', hsn: '94033000', qty: 4, unit: 'pcs', rate: 3200, gst: 18 },
+  { sno: 3, description: 'Wooden Dining Table', hsn: '94036000', qty: 3, unit: 'pcs', rate: 11500, gst: 18 },
+  { sno: 4, description: 'Shoe Cabinet', hsn: '94035000', qty: 6, unit: 'pcs', rate: 2500, gst: 12 },
 ]
-
-const GST_RATE = 18 // split evenly into CGST + SGST, as an intra-state supply is
 
 const money = (n) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -126,24 +129,41 @@ function buildPdf(outPath) {
   y += 12
 
   // ── totals ──
-  const half = GST_RATE / 2
-  const cgst = Math.round(subtotal * (half / 100) * 100) / 100
-  const sgst = cgst
-  const total = subtotal + cgst + sgst
+  // A rate-wise summary, which is how GST invoices actually present mixed
+  // rates: each slab gets its own CGST and SGST line rather than one blended
+  // percentage that matches nothing on the return.
+  const bySlab = new Map()
+  for (const item of ITEMS) {
+    const amount = item.qty * item.rate
+    bySlab.set(item.gst, (bySlab.get(item.gst) ?? 0) + amount)
+  }
 
   const totalRow = (label, value, bold = false) => {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9.5)
-    doc.text(label, 330, y, { width: 130, align: 'right' })
+    doc.text(label, 320, y, { width: 140, align: 'right' })
     doc.text(money(value), 465, y, { width: 90, align: 'right' })
     y += bold ? 20 : 16
   }
 
   totalRow('Sub Total', subtotal)
-  totalRow(`CGST @ ${half}%`, cgst)
-  totalRow(`SGST @ ${half}%`, sgst)
-  doc.moveTo(330, y + 2).lineTo(555, y + 2).strokeColor('#999').stroke()
+
+  let taxTotal = 0
+  for (const slab of [...bySlab.keys()].sort((a, b) => b - a)) {
+    const base = bySlab.get(slab)
+    const half = Math.round(base * (slab / 2 / 100) * 100) / 100
+    taxTotal += half * 2
+    totalRow(`CGST @ ${slab / 2}%`, half)
+    totalRow(`SGST @ ${slab / 2}%`, half)
+  }
+
+  const total = subtotal + taxTotal
+  doc.moveTo(320, y + 2).lineTo(555, y + 2).strokeColor('#999').stroke()
   y += 8
   totalRow('Grand Total', total, true)
+
+  const slabs = [...bySlab.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([slab, base]) => ({ slab, base, half: Math.round(base * (slab / 2 / 100) * 100) / 100 }))
 
   // ── footer ──
   y += 24
@@ -154,8 +174,10 @@ function buildPdf(outPath) {
 
   doc.end()
 
-  return { subtotal, cgst, sgst, total }
+  return { subtotal, slabs, taxTotal, total }
 }
+
+const bySlabBase = (totals, slab) => totals.slabs.find((s) => s.slab === slab).base
 
 const target = process.argv[2] || path.resolve(process.cwd(), 'storage', 'sample-vendor-invoice.pdf')
 const totals = buildPdf(target)
@@ -169,7 +191,9 @@ console.log(`    invoice date  ${INVOICE.date}  ->  2026-08-12`)
 console.log(`    due date      ${INVOICE.dueDate}  ->  2026-09-11`)
 console.log(`    line items    ${ITEMS.length}   (all four are seeded products)`)
 console.log(`    sub total     ${money(totals.subtotal)}`)
-console.log(`    CGST 9%       ${money(totals.cgst)}`)
-console.log(`    SGST 9%       ${money(totals.sgst)}`)
+for (const { slab, half } of totals.slabs) {
+  console.log(`    CGST @ ${String(slab / 2).padEnd(2)}%      ${money(half)}   (on ${money(bySlabBase(totals, slab))} of ${slab}% goods)`)
+  console.log(`    SGST @ ${String(slab / 2).padEnd(2)}%      ${money(half)}`)
+}
 console.log(`    grand total   ${money(totals.total)}`)
 console.log('\n  Confidence should read 97 — every field the parser scores is present.\n')
