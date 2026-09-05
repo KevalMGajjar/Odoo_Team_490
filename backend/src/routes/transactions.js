@@ -119,7 +119,7 @@ function totalsOf(lines) {
 const listDocuments = (model, { include, searchField = 'number', partnerField }) =>
   async (req, res, next) => {
     try {
-      const { q, state, settleState, partnerId, from, to, page = '1', pageSize = '50' } = req.query
+      const { q, state, settleState, partnerId, direction, from, to, page = '1', pageSize = '50' } = req.query
       const take = Math.min(Math.max(parseInt(pageSize, 10) || 50, 1), 200)
       const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take
 
@@ -127,6 +127,9 @@ const listDocuments = (model, { include, searchField = 'number', partnerField })
       if (state) where.state = state
       if (settleState) where.settleState = settleState
       if (partnerId && partnerField) where[partnerField] = partnerId
+      // Payments only: 'inbound' (received) vs 'outbound' (paid) — Payments
+      // Received / Payments Made are the same list, filtered by this.
+      if (direction && model === 'payment') where.direction = direction
       if (q?.trim()) where[searchField] = { contains: q.trim(), mode: 'insensitive' }
 
       const rows = await prisma[model].findMany({
