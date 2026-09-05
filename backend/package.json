@@ -20,7 +20,8 @@
     "verify:voucher": "node src/db/verify-voucher.js",
     "verify:documents": "node src/db/verify-documents.js",
     "verify:api": "node src/db/verify-api.js",
-    "files": "node src/db/files.js"
+    "files": "node src/db/files.js",
+    "demo": "node src/db/demo.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
