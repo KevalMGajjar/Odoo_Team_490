@@ -14,11 +14,14 @@ export function AppShell({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface-bg">
+    // print:h-auto/overflow-visible throughout this tree — a fixed-height,
+    // overflow:auto layout only ever paints what's scrolled into view, so
+    // without this a printed page would come out blank past the fold.
+    <div className="flex h-screen flex-col overflow-hidden bg-surface-bg print:h-auto print:overflow-visible">
       <Topbar onMenuClick={() => setMobileOpen((v) => !v)} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden print:overflow-visible">
         <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">{children}</main>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden print:overflow-visible">{children}</main>
       </div>
     </div>
   )

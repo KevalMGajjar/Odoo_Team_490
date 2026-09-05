@@ -13,6 +13,7 @@ import { RegisterPaymentModal } from '@/components/documents/RegisterPaymentModa
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { Printer } from 'lucide-react'
 import { useApiGet } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
@@ -66,6 +67,7 @@ export default function BillDetailPage() {
         actions={
           <>
             <Statusbar stages={STAGES} current={bill.state} />
+            <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>Print</Button>
             {canWrite(user?.role) && bill.state === 'draft' && (
               <Button variant="primary" size="sm" onClick={postBill} loading={posting}>Post</Button>
             )}
@@ -76,13 +78,13 @@ export default function BillDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0">
         <FormSheet className="max-w-[1100px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xl font-semibold text-ink">Vendor Bill No. {bill.number}</p>
             <div className="flex items-center gap-2">
               <StatusBadge status={bill.settleState} />
-              <div className="flex gap-2">
+              <div className="flex gap-2 print:hidden">
                 {bill.purchaseOrder && <SmartButton value={bill.purchaseOrder.number} label="PO" href={`/purchase-orders/${bill.purchaseOrder.id}`} />}
                 <SmartButton value="View" label="Budget" href="/reports/budget" />
                 {bill.state === 'posted' && (
@@ -111,7 +113,7 @@ export default function BillDetailPage() {
           </FormSection>
 
           {bill.journalEntry && (
-            <FormSection title="Journal Entry">
+            <FormSection title="Journal Entry" className="print:hidden">
               <DebitCreditGrid
                 items={bill.journalEntry.items.map((i) => ({ ...i, account: i.account }))}
                 onChange={() => {}}

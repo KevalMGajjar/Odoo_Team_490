@@ -76,7 +76,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }) {
 
       <aside
         className={clsx(
-          'shrink-0 border-r border-line bg-surface-sidebar transition-[width] duration-150',
+          'shrink-0 border-r border-line bg-surface-sidebar transition-[width] duration-150 print:hidden',
           'flex flex-col overflow-hidden',
           // desktop: full width ≥1280, icon rail 1024-1279, hidden <1024 unless drawer open
           railOnly ? 'lg:w-sidebar-rail' : 'lg:w-sidebar',

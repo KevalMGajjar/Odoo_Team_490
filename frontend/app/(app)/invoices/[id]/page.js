@@ -13,6 +13,7 @@ import { RegisterPaymentModal } from '@/components/documents/RegisterPaymentModa
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { Printer } from 'lucide-react'
 import { useApiGet } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
@@ -69,6 +70,7 @@ export default function InvoiceDetailPage() {
         actions={
           <>
             <Statusbar stages={STAGES} current={invoice.state} />
+            <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>Print</Button>
             {canWrite(user?.role) && invoice.state === 'draft' && (
               <Button variant="primary" size="sm" onClick={postInvoice} loading={posting}>Post</Button>
             )}
@@ -79,13 +81,13 @@ export default function InvoiceDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0">
         <FormSheet className="max-w-[1100px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xl font-semibold text-ink">Customer Invoice No. {invoice.number}</p>
             <div className="flex items-center gap-2">
               <StatusBadge status={invoice.settleState} />
-              <div className="flex gap-2">
+              <div className="flex gap-2 print:hidden">
                 {invoice.salesOrder && <SmartButton value={invoice.salesOrder.number} label="SO" href={`/sales-orders/${invoice.salesOrder.id}`} />}
                 <SmartButton value="View" label="Budget" href="/reports/budget" />
                 {invoice.state === 'posted' && (
@@ -114,7 +116,7 @@ export default function InvoiceDetailPage() {
           </FormSection>
 
           {grossMargin !== null && (
-            <FormSection>
+            <FormSection className="print:hidden">
               <div className="flex items-center gap-2 rounded border border-state-paid/30 bg-state-paid/5 px-4 py-2.5 text-sm">
                 <span className="font-medium text-state-paid">Gross Margin</span>
                 <span className="tabular font-semibold text-ink">{formatMoney(grossMargin)}</span>
@@ -124,13 +126,13 @@ export default function InvoiceDetailPage() {
           )}
 
           {invoice.journalEntry && (
-            <FormSection title="Revenue Entry">
+            <FormSection title="Revenue Entry" className="print:hidden">
               <DebitCreditGrid items={invoice.journalEntry.items.map((i) => ({ ...i, account: i.account }))} onChange={() => {}} disabled />
             </FormSection>
           )}
 
           {invoice.cogsEntry && (
-            <FormSection title="Cost of Goods Sold Entry">
+            <FormSection title="Cost of Goods Sold Entry" className="print:hidden">
               <DebitCreditGrid items={invoice.cogsEntry.items.map((i) => ({ ...i, account: i.account }))} onChange={() => {}} disabled />
             </FormSection>
           )}

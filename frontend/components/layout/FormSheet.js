@@ -13,9 +13,9 @@ export function FormGrid({ children }) {
   return <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">{children}</div>
 }
 
-export function FormSection({ title, children }) {
+export function FormSection({ title, children, className }) {
   return (
-    <div className="mb-6 last:mb-0">
+    <div className={clsx('mb-6 last:mb-0', className)}>
       {title && <p className="text-md font-semibold text-ink mb-3">{title}</p>}
       {children}
     </div>

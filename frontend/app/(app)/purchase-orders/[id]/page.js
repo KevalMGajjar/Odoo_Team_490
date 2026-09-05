@@ -9,6 +9,7 @@ import { LineItemGrid } from '@/components/documents/LineItemGrid'
 import { Statusbar } from '@/components/documents/Statusbar'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { Printer } from 'lucide-react'
 import { useApiGet } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
@@ -75,6 +76,7 @@ export default function PurchaseOrderDetailPage() {
         actions={
           <>
             <Statusbar stages={STAGES} current={po.state} />
+            <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>Print</Button>
             {canWrite(user?.role) && po.state === 'draft' && (
               <Button variant="primary" size="sm" onClick={confirm} loading={confirming}>Confirm</Button>
             )}
@@ -85,7 +87,7 @@ export default function PurchaseOrderDetailPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0">
         <FormSheet className="max-w-[1100px]">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <p className="text-xl font-semibold text-ink">{po.number}</p>

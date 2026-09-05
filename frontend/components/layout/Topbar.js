@@ -40,7 +40,7 @@ export function Topbar({ onMenuClick }) {
     .toUpperCase()
 
   return (
-    <header className="flex h-topbar shrink-0 items-center gap-3 border-b border-line bg-surface-header px-3">
+    <header className="flex h-topbar shrink-0 items-center gap-3 border-b border-line bg-surface-header px-3 print:hidden">
       <button onClick={onMenuClick} className="rounded p-1.5 text-ink-muted hover:bg-surface-hover md:hidden" aria-label="Menu">
         <Menu size={18} />
       </button>

@@ -10,7 +10,7 @@ import clsx from 'clsx'
  */
 export function ControlPanel({ breadcrumb, title, pager, actions, search, viewSwitcher, children }) {
   return (
-    <div className="sticky top-0 z-10 flex min-h-panel flex-wrap items-center gap-2 border-b border-line bg-surface-header px-4 py-2">
+    <div className="sticky top-0 z-10 flex min-h-panel flex-wrap items-center gap-2 border-b border-line bg-surface-header px-4 py-2 print:hidden">
       <div className="flex min-w-0 items-center gap-1.5">
         {breadcrumb && <span className="truncate text-xs text-ink-faint">{breadcrumb}</span>}
         {breadcrumb && title && <span className="text-ink-faint">/</span>}
