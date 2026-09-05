@@ -35,17 +35,50 @@ export async function fuzzySearchIds({ table, columns, query, limit = 200 }) {
   const tbl = ident(table)
   const cols = columns.map(ident)
 
-  const scores = cols.map((c) => `word_similarity($1, COALESCE(${c}, ''))`)
+  // One indexed branch per column per operator, UNION'd — not a single WHERE
+  // with everything OR'd together. Both return the same rows; only this one
+  // uses the indexes.
+  //
+  // Postgres estimates trigram selectivity badly: for a 50k-row table it
+  // predicted 1718 matches where there was 1, decided six bitmap scans were
+  // dearer than reading the table, and sequentially scanned. Measured at 50k
+  // rows: 462ms for the OR, 12ms for this. Forcing enable_seqscan=off gets the
+  // same speed from the OR, which is how we know the estimate is the problem —
+  // but that is a per-query hint that would apply to the rest of the plan too.
+  // UNION gets there by leaving the planner no worse option.
+  //
+  // Bare columns, not COALESCE(col, ''): an index on `name` cannot serve a
+  // predicate on `COALESCE(name, '')`, and wrapping it cost the index (166ms
+  // vs 7ms on one column). It is not needed here either — NULL <% 'x' is NULL,
+  // which a WHERE treats as no match, which is what we want. The scoring
+  // expression below still coalesces, because there NULL would sort first.
+  const branches = cols.flatMap((c) => [
+    `SELECT id FROM ${tbl} WHERE $1 <% ${c}`,
+    `SELECT id FROM ${tbl} WHERE ${c} ILIKE '%' || $1 || '%'`,
+  ])
+
+  const scores = cols.map((c) => `word_similarity($1, COALESCE(t.${c}, ''))`)
   const score = scores.length > 1 ? `GREATEST(${scores.join(', ')})` : scores[0]
-  const ilike = cols.map((c) => `COALESCE(${c}, '') ILIKE '%' || $1 || '%'`).join(' OR ')
 
   const sql = `
-    SELECT id
-    FROM ${tbl}
-    WHERE (${ilike}) OR ${score} >= $2
-    ORDER BY ${score} DESC, id
-    LIMIT $3
+    WITH matches AS (
+      ${branches.join('\n      UNION\n      ')}
+    )
+    SELECT t.id
+    FROM ${tbl} t
+    JOIN matches m ON m.id = t.id
+    ORDER BY ${score} DESC, t.id
+    LIMIT $2
   `
-  const rows = await prisma.$queryRawUnsafe(sql, query, THRESHOLD, limit)
+
+  // `<%` takes its cutoff from a session setting rather than an argument, and
+  // SET LOCAL only affects the connection that ran it — which under a pool
+  // means it has to share a transaction with the query. Two local statements,
+  // no network call between them: the one shape a transaction is for. Contrast
+  // mailer.js, where an SMTP round trip inside one was the bug.
+  const rows = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL pg_trgm.word_similarity_threshold = ${THRESHOLD}`)
+    return tx.$queryRawUnsafe(sql, query, limit)
+  })
   return rows.map((r) => r.id)
 }
