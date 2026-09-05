@@ -184,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [AppTheme.brand, Color(0xFF8E5182)],
+                              colors: [AppTheme.brand, AppTheme.brandAccent],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -238,13 +238,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
                           color: conn.isOnline
-                              ? const Color(0xFFD1FAE5)
-                              : const Color(0xFFFEF3C7),
+                              ? AppTheme.successSurface
+                              : AppTheme.warningSurface,
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
                             color: conn.isOnline
-                                ? const Color(0xFF047857).withValues(alpha: 0.2)
-                                : const Color(0xFFB45309).withValues(alpha: 0.2),
+                                ? AppTheme.successText.withValues(alpha: 0.2)
+                                : AppTheme.warningText.withValues(alpha: 0.2),
                           ),
                         ),
                         child: Row(
@@ -256,8 +256,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: conn.isOnline
-                                    ? const Color(0xFF10B981)
-                                    : const Color(0xFFF59E0B),
+                                    ? AppTheme.paid
+                                    : AppTheme.partial,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -267,8 +267,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
                                 color: conn.isOnline
-                                    ? const Color(0xFF047857)
-                                    : const Color(0xFFB45309),
+                                    ? AppTheme.successText
+                                    : AppTheme.warningText,
                               ),
                             ),
                           ],
@@ -301,13 +301,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
+                          color: AppTheme.dangerSurface,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFFECACA)),
+                          border: Border.all(color: AppTheme.dangerSurface),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, size: 16, color: Color(0xFFDC2626)),
+                            const Icon(Icons.error_outline, size: 16, color: AppTheme.overdue),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -315,7 +315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: Color(0xFF991B1B),
+                                  color: AppTheme.dangerText,
                                 ),
                               ),
                             ),
@@ -426,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: auth.isLoading ? null : () => _fillDemo('accountant1'),
           ),
           ActionChip(
-            avatar: const Icon(Icons.person_outline, size: 14, color: Color(0xFFC2410C)),
+            avatar: const Icon(Icons.person_outline, size: 14, color: AppTheme.credit),
             label: const Text('Portal User', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
             onPressed: auth.isLoading ? null : () => _fillDemo('nimesh01'),
           ),

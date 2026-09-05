@@ -66,14 +66,17 @@ class DashboardScreen extends StatelessWidget {
                 mainAxisSpacing: 10,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isWide ? 1.85 : 1.18,
+                // Sized to the content. At 1.18 each card carried roughly
+                // sixty pixels of empty space below its subtitle, which is the
+                // kind of slack that reads as unfinished rather than airy.
+                childAspectRatio: isWide ? 1.95 : 1.72,
                 children: [
                   KpiCard(
                     title: 'Receivables',
                     value: currencyFmt.format(data.totalReceivables),
                     subtitle: '${data.overdueInvoicesCount} overdue',
                     icon: Icons.trending_up_rounded,
-                    accentColor: const Color(0xFF02848A),
+                    accentColor: AppTheme.secondary,
                     onTap: () => onNavigateTab?.call(1),
                   ),
                   KpiCard(
@@ -81,7 +84,7 @@ class DashboardScreen extends StatelessWidget {
                     value: currencyFmt.format(data.totalPayables),
                     subtitle: '${data.vendorBills.length} vendor bills',
                     icon: Icons.trending_down_rounded,
-                    accentColor: const Color(0xFFEA580C),
+                    accentColor: AppTheme.credit,
                     onTap: () => onNavigateTab?.call(1),
                   ),
                   KpiCard(
@@ -97,7 +100,7 @@ class DashboardScreen extends StatelessWidget {
                     value: '${data.totalActiveProducts}',
                     subtitle: '${data.totalActiveContacts} active contacts',
                     icon: Icons.inventory_2_rounded,
-                    accentColor: const Color(0xFF2563EB),
+                    accentColor: AppTheme.debit,
                     onTap: () => onNavigateTab?.call(3),
                   ),
                 ],
@@ -140,7 +143,7 @@ class DashboardScreen extends StatelessWidget {
                       icon: Icons.people_alt_rounded,
                       label: 'Contacts',
                       count: '${data.contacts.length}',
-                      accentColor: const Color(0xFF02848A),
+                      accentColor: AppTheme.secondary,
                       isNarrow: isNarrow,
                       onTap: () => onNavigateTab?.call(2),
                     ),
@@ -151,7 +154,7 @@ class DashboardScreen extends StatelessWidget {
                       icon: Icons.menu_book_rounded,
                       label: 'Ledger',
                       count: '${data.journalEntries.length}',
-                      accentColor: const Color(0xFF2563EB),
+                      accentColor: AppTheme.debit,
                       isNarrow: isNarrow,
                       onTap: () => onNavigateTab?.call(4),
                     ),
@@ -267,7 +270,7 @@ class DashboardScreen extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${inv.customerName ?? 'Customer'} • ${inv.invoiceDate}',
+                                      '${inv.customerName ?? 'Customer'} • ${Fmt.day(inv.invoiceDate)}',
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         color: AppTheme.textMuted,

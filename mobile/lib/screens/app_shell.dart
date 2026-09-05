@@ -110,13 +110,16 @@ class _AppShellState extends State<AppShell> {
 
     return Scaffold(
       appBar: AppBar(
+        // A two-line title beside a logo tile is a tight fit in Material's
+        // default 56, leaving the subtitle sitting on the bar's edge.
+        toolbarHeight: 64,
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [AppTheme.brand, Color(0xFF8E5182)],
+                  colors: [AppTheme.brand, AppTheme.brandAccent],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),

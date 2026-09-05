@@ -63,7 +63,7 @@ class _SyncStatusBarState extends State<SyncStatusBar>
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             duration: const Duration(seconds: 2),
-            backgroundColor: const Color(0xFF047857),
+            backgroundColor: AppTheme.successText,
           ),
         );
       }
@@ -104,7 +104,7 @@ class _SyncStatusBarState extends State<SyncStatusBar>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),
           decoration: BoxDecoration(
-            color: isOnline ? AppTheme.sheet : const Color(0xFFFFFBEB),
+            color: isOnline ? AppTheme.sheet : AppTheme.warningSurface,
             border: const Border(bottom: BorderSide(color: AppTheme.border, width: 1)),
           ),
           child: Row(
@@ -114,13 +114,13 @@ class _SyncStatusBarState extends State<SyncStatusBar>
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                   color: isOnline
-                      ? const Color(0xFFD1FAE5)
-                      : const Color(0xFFFEF3C7),
+                      ? AppTheme.successSurface
+                      : AppTheme.warningSurface,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
                     color: isOnline
-                        ? const Color(0xFF047857).withValues(alpha: 0.2)
-                        : const Color(0xFFB45309).withValues(alpha: 0.2),
+                        ? AppTheme.successText.withValues(alpha: 0.2)
+                        : AppTheme.warningText.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Row(
@@ -132,8 +132,8 @@ class _SyncStatusBarState extends State<SyncStatusBar>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: isOnline
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
+                            ? AppTheme.paid
+                            : AppTheme.partial,
                         boxShadow: [
                           BoxShadow(
                             color: isOnline
@@ -152,8 +152,8 @@ class _SyncStatusBarState extends State<SyncStatusBar>
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                         color: isOnline
-                            ? const Color(0xFF047857)
-                            : const Color(0xFFB45309),
+                            ? AppTheme.successText
+                            : AppTheme.warningText,
                         letterSpacing: 0.3,
                       ),
                     ),
@@ -233,18 +233,18 @@ class _SyncStatusBarState extends State<SyncStatusBar>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-            color: const Color(0xFFFEF2F2),
+            color: AppTheme.dangerSurface,
             child: Row(
               children: [
                 const Icon(Icons.warning_amber_rounded,
-                    size: 16, color: Color(0xFFDC2626)),
+                    size: 16, color: AppTheme.overdue),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
                     'Session expired. Sign in when online to refresh your data.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF991B1B),
+                      color: AppTheme.dangerText,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -261,7 +261,7 @@ class _SyncStatusBarState extends State<SyncStatusBar>
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFDC2626),
+                      color: AppTheme.overdue,
                       decoration: TextDecoration.underline,
                     ),
                   ),

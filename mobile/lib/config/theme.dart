@@ -7,14 +7,17 @@ class AppTheme {
   AppTheme._();
 
   // ── Brand colours ──
-  static const Color brand = Color(0xFF6B3E62);
-  static const Color brandHover = Color(0xFF532E4C);
-  static const Color brandLight = Color(0xFFF6EFF4);
+  // These mirror frontend/app/globals.css exactly. The two clients are one
+  // product, and a plum that is nearly-but-not-quite the web's reads as a
+  // rendering fault rather than a second app.
+  static const Color brand = Color(0xFF714B67);
+  static const Color brandHover = Color(0xFF5C3D54);
+  static const Color brandLight = Color(0xFFF0EAEE);
   static const Color brandAccent = Color(0xFF8E5182);
 
-  static const Color secondary = Color(0xFF02848A);
+  static const Color secondary = Color(0xFF017E84);
   static const Color secondaryLight = Color(0xFFE6F5F6);
-  static const Color secondaryHover = Color(0xFF01696E);
+  static const Color secondaryHover = Color(0xFF016468);
 
   // ── Surfaces ──
   static const Color bg = Color(0xFFF8F9FC);
@@ -48,16 +51,28 @@ class AppTheme {
       ];
 
   // ── Semantic (document states) ──
-  static const Color draft = Color(0xFF64748B);
-  static const Color posted = Color(0xFF6B3E62);
-  static const Color paid = Color(0xFF10B981);
-  static const Color partial = Color(0xFFF59E0B);
-  static const Color overdue = Color(0xFFEF4444);
-  static const Color info = Color(0xFF02848A);
+  static const Color draft = Color(0xFF8F8F8F);
+  static const Color posted = Color(0xFF714B67);
+  static const Color paid = Color(0xFF28A745);
+  static const Color partial = Color(0xFFF0AD4E);
+  static const Color overdue = Color(0xFFD9534F);
+  static const Color info = Color(0xFF17A2B8);
 
   // ── Numeric emphasis ──
-  static const Color debit = Color(0xFF2563EB);
-  static const Color credit = Color(0xFFEA580C);
+  static const Color debit = Color(0xFF1F6FEB);
+  static const Color credit = Color(0xFFC2410C);
+
+  // ── Tinted surfaces for banners and badges ──
+  // Named rather than mixed inline: the screens had grown forty-odd one-off
+  // hex values, several of them a shade away from each other, which is the
+  // difference a person reads as "unfinished" without being able to say why.
+  static const Color successSurface = Color(0xFFE8F6EC);
+  static const Color successText = Color(0xFF1B6B2C);
+  static const Color warningSurface = Color(0xFFFDF3E2);
+  static const Color warningText = Color(0xFF8A5A0B);
+  static const Color dangerSurface = Color(0xFFFBECEC);
+  static const Color dangerText = Color(0xFF9B2C2C);
+  static const Color infoSurface = Color(0xFFE7F5F7);
 
   // ── Shape ──
   static const double radius = 12.0;

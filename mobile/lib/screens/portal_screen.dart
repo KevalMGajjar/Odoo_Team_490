@@ -26,7 +26,7 @@ class PortalScreen extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppTheme.brand, Color(0xFF8E5182)],
+                colors: [AppTheme.brand, AppTheme.brandAccent],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -187,7 +187,7 @@ class PortalScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  'Date: ${inv.invoiceDate} ${inv.dueDate != null ? '• Due: ${inv.dueDate}' : ''}',
+                                  'Date: ${Fmt.day(inv.invoiceDate)} ${inv.dueDate != null ? '• Due: ${Fmt.day(inv.dueDate)}' : ''}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMuted,

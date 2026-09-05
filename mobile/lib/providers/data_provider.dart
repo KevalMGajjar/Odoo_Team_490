@@ -41,17 +41,38 @@ class DataProvider extends ChangeNotifier {
       _vendorBills.isNotEmpty ||
       _products.isNotEmpty;
 
+  /// Sorted here, once, rather than in each screen.
+  ///
+  /// Hive returns records in whatever order they were written, which is the
+  /// order the server happened to send them — so the invoice list opened on
+  /// 0015, 0013, 0019, 0003. Not wrong, exactly, but a list with no order is
+  /// the fastest way to make a working app look broken, and every screen
+  /// re-sorting for itself is how two screens end up disagreeing.
+  ///
+  /// Dates are ISO-8601 strings (`2026-07-15`), which sort correctly as text —
+  /// no parsing needed, and no throwing on a malformed one.
   void _loadFromHive() {
-    _contacts = _storage.contacts;
-    _products = _storage.products;
-    _accounts = _storage.accounts;
-    _journals = _storage.journals;
-    _customerInvoices = _storage.customerInvoices;
-    _vendorBills = _storage.vendorBills;
-    _payments = _storage.payments;
-    _purchaseOrders = _storage.purchaseOrders;
-    _salesOrders = _storage.salesOrders;
-    _journalEntries = _storage.journalEntries;
+    _contacts = _sorted(_storage.contacts, (a, b) => a.name.compareTo(b.name));
+    _products = _sorted(_storage.products, (a, b) => a.name.compareTo(b.name));
+    _accounts = _sorted(_storage.accounts, (a, b) => a.code.compareTo(b.code));
+    _journals = _sorted(_storage.journals, (a, b) => a.code.compareTo(b.code));
+
+    // Documents read newest-first: the ones you are asked about are the recent
+    // ones, and scrolling to the bottom for today's invoice is nobody's idea.
+    _customerInvoices = _sorted(_storage.customerInvoices, (a, b) => b.invoiceDate.compareTo(a.invoiceDate));
+    _vendorBills = _sorted(_storage.vendorBills, (a, b) => b.billDate.compareTo(a.billDate));
+    _payments = _sorted(_storage.payments, (a, b) => b.paymentDate.compareTo(a.paymentDate));
+    _purchaseOrders = _sorted(_storage.purchaseOrders, (a, b) => b.orderDate.compareTo(a.orderDate));
+    _salesOrders = _sorted(_storage.salesOrders, (a, b) => b.orderDate.compareTo(a.orderDate));
+    _journalEntries = _sorted(_storage.journalEntries, (a, b) => b.date.compareTo(a.date));
+  }
+
+  /// Sort a copy. Hive hands back its own list, and sorting it in place would
+  /// reorder the cache underneath anything else holding a reference to it.
+  static List<T> _sorted<T>(List<T> source, int Function(T, T) compare) {
+    final copy = List<T>.of(source);
+    copy.sort(compare);
+    return copy;
   }
 
   /// Load all cached entities from Hive and notify listeners

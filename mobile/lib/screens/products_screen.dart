@@ -81,13 +81,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
                               ),
                               child: const Icon(Icons.chair_rounded, color: AppTheme.brand, size: 24),
                             ),
+                            // Name and price on one line, details and status
+                            // on the next — the same shape as the invoice rows.
+                            // The previous layout put the price in `trailing`,
+                            // which took its width off the title and left names
+                            // reading "Wooden Dining T…" on a 412px screen.
                             title: Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
                               children: [
                                 Expanded(
                                   child: Text(
                                     p.name,
-                                    // One line keeps every row the same height;
-                                    // wrapping names pushed the badge out of line.
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -97,39 +102,36 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                StatusBadge(status: p.status),
-                              ],
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                'Category: ${p.category ?? 'General'} • Cost: ${fmt.format(cost)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textMuted,
-                                ),
-                              ),
-                            ),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
+                                const SizedBox(width: 10),
                                 Text(
                                   fmt.format(price),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 15,
+                                    fontSize: 14.5,
                                     color: AppTheme.brand,
                                   ),
                                 ),
-                                const Text(
-                                  'Sales Price',
-                                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: AppTheme.textMuted),
-                                ),
                               ],
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 5),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${p.category ?? 'General'} • cost ${fmt.format(cost)}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppTheme.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  StatusBadge(status: p.status),
+                                ],
+                              ),
                             ),
                           ),
                         ),

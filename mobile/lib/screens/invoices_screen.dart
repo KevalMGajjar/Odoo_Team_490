@@ -81,11 +81,11 @@ class _InvoicesScreenState extends State<InvoicesScreen>
             const SizedBox(height: 12),
             Row(
               children: [
-                Text('Date: ${inv.invoiceDate}',
+                Text('Date: ${Fmt.day(inv.invoiceDate)}',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
                 if (inv.dueDate != null) ...[
                   const SizedBox(width: 16),
-                  Text('Due: ${inv.dueDate}',
+                  Text('Due: ${Fmt.day(inv.dueDate)}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
                 ],
               ],
@@ -213,7 +213,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFFEA580C),
+                        color: AppTheme.credit,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -236,11 +236,11 @@ class _InvoicesScreenState extends State<InvoicesScreen>
             const SizedBox(height: 12),
             Row(
               children: [
-                Text('Date: ${bill.billDate}',
+                Text('Date: ${Fmt.day(bill.billDate)}',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
                 if (bill.dueDate != null) ...[
                   const SizedBox(width: 16),
-                  Text('Due: ${bill.dueDate}',
+                  Text('Due: ${Fmt.day(bill.dueDate)}',
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
                 ],
               ],
@@ -315,7 +315,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                 Text(
                   fmt.format(double.tryParse(bill.total) ?? 0),
                   style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFFEA580C)),
+                      fontWeight: FontWeight.w800, fontSize: 17, color: AppTheme.credit),
                 ),
               ],
             ),
@@ -483,7 +483,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              '${inv.customerName ?? 'Customer'} • ${inv.invoiceDate}',
+                                              '${inv.customerName ?? 'Customer'} • ${Fmt.day(inv.invoiceDate)}',
                                               style: const TextStyle(
                                                 fontSize: 12,
                                                 color: AppTheme.textMuted,
@@ -566,7 +566,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w800,
                                               fontSize: 15,
-                                              color: Color(0xFFEA580C),
+                                              color: AppTheme.credit,
                                             ),
                                           ),
                                         ],
@@ -578,7 +578,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                                         children: [
                                           Expanded(
                                             child: Text(
-                                              '${bill.vendorName ?? 'Vendor'} • ${bill.billDate}',
+                                              '${bill.vendorName ?? 'Vendor'} • ${Fmt.day(bill.billDate)}',
                                               style: const TextStyle(
                                                 fontSize: 12,
                                                 color: AppTheme.textMuted,

@@ -28,38 +28,38 @@ class StatusBadge extends StatelessWidget {
         icon = Icons.check_circle_outline;
         break;
       case 'paid':
-        bg = const Color(0xFFD1FAE5);
-        fg = const Color(0xFF047857);
+        bg = AppTheme.successSurface;
+        fg = AppTheme.successText;
         label = 'PAID';
         icon = Icons.done_all;
         break;
       case 'partial':
       case 'partially_paid':
-        bg = const Color(0xFFFEF3C7);
-        fg = const Color(0xFFB45309);
+        bg = AppTheme.warningSurface;
+        fg = AppTheme.warningText;
         label = 'PARTIAL';
         icon = Icons.pie_chart_outline;
         break;
       case 'not_paid':
-        bg = const Color(0xFFFEE2E2);
+        bg = AppTheme.dangerSurface;
         fg = const Color(0xFFB91C1C);
         label = 'NOT PAID';
         icon = Icons.error_outline;
         break;
       case 'overdue':
-        bg = const Color(0xFFFEE2E2);
-        fg = const Color(0xFFDC2626);
+        bg = AppTheme.dangerSurface;
+        fg = AppTheme.overdue;
         label = 'OVERDUE';
         icon = Icons.warning_amber_rounded;
         break;
       case 'active':
-        bg = const Color(0xFFE0F2FE);
+        bg = AppTheme.infoSurface;
         fg = const Color(0xFF0369A1);
         label = 'ACTIVE';
         icon = Icons.circle;
         break;
       case 'archived':
-        bg = const Color(0xFFF1F5F9);
+        bg = AppTheme.subtle;
         fg = const Color(0xFF475569);
         label = 'ARCHIVED';
         break;
@@ -82,20 +82,20 @@ class StatusBadge extends StatelessWidget {
         icon = Icons.shield_outlined;
         break;
       case 'invoicing_user':
-        bg = const Color(0xFFE0F2FE);
+        bg = AppTheme.infoSurface;
         fg = const Color(0xFF0284C7);
         label = 'ACCOUNTANT';
         icon = Icons.calculate_outlined;
         break;
       case 'contact':
         bg = const Color(0xFFFFEDD5);
-        fg = const Color(0xFFC2410C);
+        fg = AppTheme.credit;
         label = 'PORTAL';
         icon = Icons.person;
         break;
       case 'draft':
       default:
-        bg = const Color(0xFFF1F5F9);
+        bg = AppTheme.subtle;
         fg = const Color(0xFF475569);
         label = normalized.toUpperCase();
         break;

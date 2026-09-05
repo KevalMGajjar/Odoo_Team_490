@@ -48,3 +48,6 @@ venv/
 coverage/
 .turbo/
 *.tsbuildinfo
+
+# Built app binaries — large, and rebuilt from source on demand.
+*.apk

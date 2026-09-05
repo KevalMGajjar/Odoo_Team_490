@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../config/formatting.dart';
+
 import '../models/models.dart';
 import '../providers/data_provider.dart';
 import '../widgets/status_badge.dart';
+
+/// "Miscellaneous Journal" -> "Miscellaneous". Every journal in the chart ends
+/// in the same word, so it is pure width.
+String _shortJournal(String? name) {
+  final value = (name ?? 'General').trim();
+  const suffix = ' Journal';
+  return value.endsWith(suffix) ? value.substring(0, value.length - suffix.length) : value;
+}
 
 class JournalEntriesScreen extends StatelessWidget {
   const JournalEntriesScreen({super.key});
@@ -52,7 +61,7 @@ class JournalEntriesScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Text('Date: ${entry.date} ${entry.reference != null ? '• Ref: ${entry.reference}' : ''}',
+            Text('Date: ${Fmt.day(entry.date)} ${entry.reference != null ? '• Ref: ${entry.reference}' : ''}',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textMuted)),
             const Divider(height: 28),
 
@@ -141,7 +150,7 @@ class JournalEntriesScreen extends StatelessWidget {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.check_circle, size: 16, color: Color(0xFF047857)),
+                    Icon(Icons.check_circle, size: 16, color: AppTheme.successText),
                     SizedBox(width: 6),
                     Text('Total Balanced Ledger:', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                   ],
@@ -228,23 +237,7 @@ class JournalEntriesScreen extends StatelessWidget {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      StatusBadge(status: entry.state),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          '${entry.journalName ?? 'General'} • ${entry.date} (${entry.items.length} items)',
-                                          style: const TextStyle(fontSize: 12, color: AppTheme.textMuted, fontWeight: FontWeight.w500),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
+                                      const SizedBox(width: 10),
                                       Text(
                                         fmt.format(totalDebit),
                                         style: const TextStyle(
@@ -253,6 +246,32 @@ class JournalEntriesScreen extends StatelessWidget {
                                           color: AppTheme.text,
                                         ),
                                       ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          // The amount moved up beside the
+                                          // number so this line has the width
+                                          // for a date. It was competing with
+                                          // the total and losing — rows read
+                                          // "Bank Journal • 2026-05-1…", which
+                                          // truncates the one field you scan for.
+                                          // "Journal" is the suffix of every
+                                          // journal name, so it distinguishes
+                                          // nothing and costs the eight
+                                          // characters that were pushing the
+                                          // date off the end of the line.
+                                          '${_shortJournal(entry.journalName)} • ${Fmt.day(entry.date)} • ${entry.items.length} lines',
+                                          style: const TextStyle(fontSize: 12, color: AppTheme.textMuted, fontWeight: FontWeight.w500),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      StatusBadge(status: entry.state),
                                     ],
                                   ),
                                 ],

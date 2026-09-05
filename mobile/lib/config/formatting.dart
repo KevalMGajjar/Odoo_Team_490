@@ -20,4 +20,17 @@ class Fmt {
 
   static final date = DateFormat('dd MMM yyyy');
   static final shortDate = DateFormat('dd MMM');
+
+  /// An ISO date string as `18 Jul 2026`.
+  ///
+  /// The API sends dates as `2026-07-18` and the screens were printing them
+  /// raw, which is both harder to read at a glance and wider — wide enough
+  /// that the ledger rows were truncating the date itself. Returns the input
+  /// unchanged if it will not parse, because a malformed date is worth showing
+  /// rather than swallowing.
+  static String day(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final parsed = DateTime.tryParse(iso);
+    return parsed == null ? iso : date.format(parsed);
+  }
 }
