@@ -11,6 +11,7 @@ import { DebitCreditGrid, blankRow, gridIsBalanced } from '@/components/document
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function NewJournalEntryPage() {
   const router = useRouter()
@@ -22,16 +23,14 @@ export default function NewJournalEntryPage() {
   const [narration, setNarration] = useState('')
   const [items, setItems] = useState([blankRow(), blankRow()])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   const balanced = gridIsBalanced(items)
   const canSubmit = balanced && journal && items.every((i) => i.accountId)
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const entry = await api.post('/journal-entries', {
         journalId: journal.id,
@@ -53,10 +52,8 @@ export default function NewJournalEntryPage() {
       router.replace(`/journal-entries/${entry.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not post entry')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

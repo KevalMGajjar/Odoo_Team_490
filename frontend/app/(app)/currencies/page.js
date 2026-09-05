@@ -14,6 +14,7 @@ import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function CurrenciesPage() {
   const { user } = useAuth()
@@ -23,13 +24,11 @@ export default function CurrenciesPage() {
   const [newOpen, setNewOpen] = useState(false)
   const [newForm, setNewForm] = useState({ code: '', name: '', symbol: '', decimalPlaces: 2 })
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
   const [ratesFor, setRatesFor] = useState(null)
 
-  const createCurrency = async (e) => {
+  const [createCurrency, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setErrors({})
-    setSaving(true)
     try {
       await api.post('/currencies', newForm)
       push('Currency added', { type: 'success' })
@@ -42,10 +41,8 @@ export default function CurrenciesPage() {
       } else {
         push(err.message || 'Could not add currency', { type: 'error' })
       }
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   const columns = [
     { key: 'code', header: 'Code', render: (r) => <span className="font-medium">{r.code}</span> },
@@ -109,13 +106,11 @@ function RatesModal({ currency, onClose }) {
   const { data, loading, reload } = useApiGet('/currency-rates', { currencyId: currency.id })
   const [date, setDate] = useState(toDateInput(new Date()))
   const [rate, setRate] = useState('')
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const addRate = async (e) => {
+  const [addRate, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
-    setSaving(true)
     try {
       await api.post('/currency-rates', { currencyId: currency.id, date, rate })
       push(`Rate set for ${currency.code}`, { type: 'success' })
@@ -123,10 +118,8 @@ function RatesModal({ currency, onClose }) {
       reload()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save rate')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <Modal open onClose={onClose} title={`Exchange Rates — ${currency.code}`} size="sm">

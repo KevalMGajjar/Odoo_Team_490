@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput, formatMoney } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 /** Shared by Vendor Bill and Customer Invoice detail pages. */
 export function RegisterPaymentModal({ open, onClose, kind, doc, onPosted }) {
@@ -16,7 +17,6 @@ export function RegisterPaymentModal({ open, onClose, kind, doc, onPosted }) {
   const [date, setDate] = useState(toDateInput(new Date()))
   const [amount, setAmount] = useState('')
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -30,10 +30,9 @@ export function RegisterPaymentModal({ open, onClose, kind, doc, onPosted }) {
     })
   }, [open, doc])
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
-    setSaving(true)
     try {
       const path = kind === 'invoice' ? `/invoices/${doc.id}/register-payment` : `/bills/${doc.id}/register-payment`
       const payment = await api.post(path, { journalId, paymentDate: date, amount: Number(amount) })
@@ -42,10 +41,8 @@ export function RegisterPaymentModal({ open, onClose, kind, doc, onPosted }) {
       onClose()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not record payment')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <Modal

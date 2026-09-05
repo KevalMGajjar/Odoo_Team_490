@@ -13,6 +13,7 @@ import { ScanModal } from '@/components/ocr/ScanModal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function NewSalesOrderPage() {
   const router = useRouter()
@@ -22,16 +23,14 @@ export default function NewSalesOrderPage() {
   const [orderDate, setOrderDate] = useState(toDateInput(new Date()))
   const [lines, setLines] = useState([blankProductLine()])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
 
   const canSubmit = customer && lines.length > 0 && lines.every((l) => l.productId && Number(l.quantity) > 0)
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const so = await api.post('/sales-orders', {
         customerId: customer.id,
@@ -42,10 +41,8 @@ export default function NewSalesOrderPage() {
       router.replace(`/sales-orders/${so.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create sales order')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

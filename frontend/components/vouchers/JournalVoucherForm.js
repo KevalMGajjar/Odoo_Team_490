@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 /** Journal Voucher: debit the first account, credit the second — no filter, per spec. */
 export function JournalVoucherForm() {
@@ -24,7 +25,6 @@ export function JournalVoucherForm() {
   const [narration, setNarration] = useState('')
   const [voucherNo, setVoucherNo] = useState(null)
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     api.get('/vouchers/next-number', { voucherType: 'Journal', date }).then(setVoucherNo)
@@ -33,11 +33,10 @@ export function JournalVoucherForm() {
 
   const canSubmit = debitAccount && creditAccount && debitAccount.id !== creditAccount.id && Number(amount) > 0
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const posted = await api.post('/vouchers', {
         voucherType: 'Journal',
@@ -52,10 +51,8 @@ export function JournalVoucherForm() {
       router.push(`/journal-entries/${posted.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not post journal voucher')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

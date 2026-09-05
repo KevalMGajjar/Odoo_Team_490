@@ -13,6 +13,7 @@ import { ScanModal } from '@/components/ocr/ScanModal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter()
@@ -22,16 +23,14 @@ export default function NewPurchaseOrderPage() {
   const [orderDate, setOrderDate] = useState(toDateInput(new Date()))
   const [lines, setLines] = useState([blankProductLine()])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
 
   const canSubmit = vendor && lines.length > 0 && lines.every((l) => l.productId && Number(l.quantity) > 0)
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const po = await api.post('/purchase-orders', {
         vendorId: vendor.id,
@@ -42,10 +41,8 @@ export default function NewPurchaseOrderPage() {
       router.replace(`/purchase-orders/${po.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create purchase order')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

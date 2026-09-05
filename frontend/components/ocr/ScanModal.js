@@ -11,6 +11,7 @@ import { formatMoney } from '@/lib/format'
 import { runOcrPipeline } from '@/lib/ocr/ocr-engine'
 import { parseInvoice } from '@/lib/ocr/invoice-parser'
 import { matchContact, matchProduct } from '@/lib/ocr/match'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const STAGE_LABEL = {
   reading: 'Reading PDF text…',
@@ -34,7 +35,6 @@ export function ScanModal({ open, onClose, partyRole, onFill }) {
   const [progress, setProgress] = useState({ fraction: 0, label: '' })
   const [parsed, setParsed] = useState(null)
   const [party, setParty] = useState(null)
-  const [creatingParty, setCreatingParty] = useState(false)
   const [date, setDate] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [lines, setLines] = useState([])
@@ -122,18 +122,15 @@ export function ScanModal({ open, onClose, partyRole, onFill }) {
   const removeLine = (idx) => setLines((prev) => prev.filter((_, i) => i !== idx))
   const addLine = () => setLines((prev) => [...prev, { _key: Math.random().toString(36).slice(2), productId: '', product: null, description: '', quantity: '1', unitPrice: '0', taxRate: '0' }])
 
-  const createParty = async () => {
+  const [createParty, creatingParty] = useGuardedAction(async () => {
     if (!parsed?.vendorName) return
-    setCreatingParty(true)
     try {
       const created = await api.post('/contacts', { name: parsed.vendorName, type: partyRole })
       setParty(created)
     } catch {
       setFileError('Could not create the contact — pick or create one manually instead.')
-    } finally {
-      setCreatingParty(false)
     }
-  }
+  })
 
   const confidenceTone = parsed
     ? parsed.confidence >= 80 ? 'text-state-paid bg-[#28a7451f]'
@@ -280,13 +277,13 @@ export function ScanModal({ open, onClose, partyRole, onFill }) {
                             </div>
                           </td>
                           <td className="px-2 py-1.5">
-                            <input type="number" step="0.001" min="0" className="field-input text-right tabular" value={line.quantity} onChange={(e) => updateLine(idx, { quantity: e.target.value })} />
+                            <input type="number" step="1" min="0" className="field-input text-right tabular" value={line.quantity} onChange={(e) => updateLine(idx, { quantity: e.target.value })} />
                           </td>
                           <td className="px-2 py-1.5">
-                            <input type="number" step="0.01" min="0" className="field-input text-right tabular" value={line.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} />
+                            <input type="number" step="1" min="0" className="field-input text-right tabular" value={line.unitPrice} onChange={(e) => updateLine(idx, { unitPrice: e.target.value })} />
                           </td>
                           <td className="px-2 py-1.5">
-                            <input type="number" step="0.01" min="0" className="field-input text-right tabular" value={line.taxRate} onChange={(e) => updateLine(idx, { taxRate: e.target.value })} />
+                            <input type="number" step="0.01" min="0" className="field-input text-right tabular bg-surface-subtle text-ink-muted" value={line.taxRate} readOnly title="Set from the product's GST rate once matched" />
                           </td>
                           <td className="px-3 py-1.5 text-right tabular text-ink">{formatMoney(amount)}</td>
                           <td className="px-2 py-1.5">

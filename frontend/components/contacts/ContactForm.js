@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/Modal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth, canModify } from '@/lib/auth'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const emptyForm = { name: '', type: 'customer', email: '', mobile: '', city: '', state: '', pincode: '' }
 
@@ -27,15 +28,13 @@ export function ContactForm({ contact }) {
       : emptyForm,
   )
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
   const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
-  const save = async (e) => {
+  const [save, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setErrors({})
-    setSaving(true)
     try {
       if (isEdit) {
         await api.put(`/contacts/${contact.id}`, form)
@@ -53,13 +52,10 @@ export function ContactForm({ contact }) {
       } else {
         push(err.message || 'Could not save contact', { type: 'error' })
       }
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
-  const archive = async () => {
-    setSaving(true)
+  const [archive, archiving] = useGuardedAction(async () => {
     try {
       await api.post(`/contacts/${contact.id}/archive`)
       push('Contact archived', { type: 'success' })
@@ -67,10 +63,9 @@ export function ContactForm({ contact }) {
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {
-      setSaving(false)
       setConfirmArchive(false)
     }
-  }
+  })
 
   return (
     <form onSubmit={save}>
@@ -146,7 +141,7 @@ export function ContactForm({ contact }) {
         consequence={`${contact?.name} will no longer be selectable on new documents. This is refused if any unpaid invoices or bills reference them.`}
         confirmLabel="Archive"
         danger
-        loading={saving}
+        loading={archiving}
       />
     </form>
   )

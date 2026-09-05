@@ -1,14 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '@/lib/api'
+import { useMounted } from '@/lib/useMounted'
 
 /**
  * Async-search combobox for pickers with more options than a plain <select>
  * should hold (contacts, products, accounts across a growing chart). Fetches
  * `{path}?q=` and expects `{ rows: [...] }`, matching every masters endpoint.
+ *
+ * The popup renders through a portal at a `fixed` position computed from the
+ * trigger button's own bounding rect, rather than as an `absolute` child of
+ * this component — a document form's scroll container (or a table row inside
+ * one) would otherwise clip it for any field not near the top of the visible
+ * area, exactly the way `components/ui/Modal.js` already portals to avoid
+ * the same problem.
  */
 export function SearchSelect({
   path,
@@ -27,7 +36,10 @@ export function SearchSelect({
   const [options, setOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(resolvedOption ?? null)
-  const boxRef = useRef(null)
+  const [coords, setCoords] = useState(null)
+  const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
+  const mounted = useMounted()
 
   useEffect(() => {
     if (resolvedOption) setSelected(resolvedOption)
@@ -35,9 +47,39 @@ export function SearchSelect({
 
   useEffect(() => {
     if (!open) return undefined
-    const onClickAway = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
+    const onClickAway = (e) => {
+      if (triggerRef.current?.contains(e.target)) return
+      if (dropdownRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', onClickAway)
     return () => document.removeEventListener('mousedown', onClickAway)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return undefined
+
+    const DROPDOWN_MAX_HEIGHT = 280 // search input row + max-h-56 results list
+
+    const reposition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const roomBelow = window.innerHeight - rect.bottom
+      const openUpward = roomBelow < DROPDOWN_MAX_HEIGHT && rect.top > roomBelow
+      setCoords({
+        left: rect.left,
+        width: rect.width,
+        ...(openUpward ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+      })
+    }
+    reposition()
+
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
   }, [open])
 
   useEffect(() => {
@@ -70,8 +112,9 @@ export function SearchSelect({
   }
 
   return (
-    <div ref={boxRef} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
@@ -89,8 +132,12 @@ export function SearchSelect({
         </span>
       </button>
 
-      {open && (
-        <div className="absolute z-30 mt-1 w-full rounded border border-line bg-surface-sheet shadow-pop">
+      {open && mounted && coords && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-50 rounded border border-line bg-surface-sheet shadow-pop"
+          style={{ left: coords.left, width: coords.width, top: coords.top, bottom: coords.bottom }}
+        >
           <input
             autoFocus
             value={query}
@@ -117,7 +164,8 @@ export function SearchSelect({
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

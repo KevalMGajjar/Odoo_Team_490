@@ -70,7 +70,7 @@ export function LineItemGrid({ lines, onChange, disabled }) {
                   </td>
                   <td className="px-2 py-1.5">
                     <input
-                      type="number" step="0.001" min="0"
+                      type="number" step="1" min="0"
                       className="field-input text-right tabular"
                       value={line.quantity}
                       onChange={(e) => update(idx, { quantity: e.target.value })}
@@ -79,7 +79,7 @@ export function LineItemGrid({ lines, onChange, disabled }) {
                   </td>
                   <td className="px-2 py-1.5">
                     <input
-                      type="number" step="0.01" min="0"
+                      type="number" step="1" min="0"
                       className="field-input text-right tabular"
                       value={line.unitPrice}
                       onChange={(e) => update(idx, { unitPrice: e.target.value })}
@@ -89,10 +89,11 @@ export function LineItemGrid({ lines, onChange, disabled }) {
                   <td className="px-2 py-1.5">
                     <input
                       type="number" step="0.01" min="0"
-                      className="field-input text-right tabular"
+                      className="field-input text-right tabular bg-surface-subtle text-ink-muted"
                       value={line.taxRate}
-                      onChange={(e) => update(idx, { taxRate: e.target.value })}
+                      readOnly
                       disabled={disabled}
+                      title="Set from the product's GST rate"
                     />
                   </td>
                   <td className="px-3 py-1.5 text-right tabular text-ink">{formatMoney(subtotal)}</td>

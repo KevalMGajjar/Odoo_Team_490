@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput, formatNumber } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const blankLine = () => ({ _key: Math.random().toString(36).slice(2), productId: '', product: null, countedQty: '' })
 
@@ -22,7 +23,6 @@ export default function NewStockAdjustmentPage() {
   const [reason, setReason] = useState('')
   const [lines, setLines] = useState([blankLine()])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   const update = (idx, patch) => setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   const addLine = () => setLines((ls) => [...ls, blankLine()])
@@ -30,11 +30,10 @@ export default function NewStockAdjustmentPage() {
 
   const canSubmit = lines.every((l) => l.productId && l.countedQty !== '') && lines.length > 0
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const adj = await api.post('/stock-adjustments', {
         date, reason: reason || undefined,
@@ -44,10 +43,8 @@ export default function NewStockAdjustmentPage() {
       router.replace(`/stock-adjustments/${adj.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not post stock adjustment')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

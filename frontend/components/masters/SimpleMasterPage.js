@@ -11,6 +11,7 @@ import { useApiList } from '@/lib/useApi'
 import { useAuth, canWrite, canModify } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 /**
  * List + create/edit-in-modal for single-purpose masters (a name, maybe a
@@ -38,16 +39,14 @@ export function SimpleMasterPage({
   const [modalRow, setModalRow] = useState(null) // null = closed, {} = new, {...} = edit
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(null)
 
   const openNew = () => { setForm(emptyForm); setErrors({}); setModalRow({}) }
   const openEdit = (row) => { setForm(toForm(row)); setErrors({}); setModalRow(row) }
 
-  const save = async (e) => {
+  const [save, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setErrors({})
-    setSaving(true)
     try {
       const isEdit = Boolean(modalRow?.id)
       if (isEdit) await api.put(`${apiPath}/${modalRow.id}`, toPayload(form))
@@ -61,13 +60,10 @@ export function SimpleMasterPage({
       } else {
         push(err.message || 'Could not save', { type: 'error' })
       }
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
-  const archive = async () => {
-    setSaving(true)
+  const [archive, archiving] = useGuardedAction(async () => {
     try {
       await api.post(`${apiPath}/${confirmArchive.id}/archive`)
       push('Archived', { type: 'success' })
@@ -75,10 +71,9 @@ export function SimpleMasterPage({
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {
-      setSaving(false)
       setConfirmArchive(null)
     }
-  }
+  })
 
   const allColumns = [
     ...columns,
@@ -137,7 +132,7 @@ export function SimpleMasterPage({
         consequence="It will no longer be selectable on new records. Refused if anything still references it."
         confirmLabel="Archive"
         danger
-        loading={saving}
+        loading={archiving}
       />
     </div>
   )

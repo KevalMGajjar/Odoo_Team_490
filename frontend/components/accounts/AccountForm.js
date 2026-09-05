@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/Modal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth, canModify } from '@/lib/auth'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const emptyForm = { code: '', name: '', type: 'expense', isCashBank: false }
 
@@ -24,7 +25,6 @@ export function AccountForm({ account }) {
     isEdit ? { code: account.code, name: account.name, type: account.type, isCashBank: account.isCashBank } : emptyForm,
   )
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
   const set = (field) => (e) => {
@@ -32,10 +32,9 @@ export function AccountForm({ account }) {
     setForm((f) => ({ ...f, [field]: value }))
   }
 
-  const save = async (e) => {
+  const [save, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setErrors({})
-    setSaving(true)
     try {
       if (isEdit) {
         await api.put(`/accounts/${account.id}`, form)
@@ -52,13 +51,10 @@ export function AccountForm({ account }) {
       } else {
         push(err.message || 'Could not save account', { type: 'error' })
       }
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
-  const archive = async () => {
-    setSaving(true)
+  const [archive, archiving] = useGuardedAction(async () => {
     try {
       await api.post(`/accounts/${account.id}/archive`)
       push('Account archived', { type: 'success' })
@@ -66,10 +62,9 @@ export function AccountForm({ account }) {
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {
-      setSaving(false)
       setConfirmArchive(false)
     }
-  }
+  })
 
   return (
     <form onSubmit={save}>
@@ -143,7 +138,7 @@ export function AccountForm({ account }) {
         consequence={`${account?.name} will no longer be selectable on new entries. This is refused if any ledger entries already reference it.`}
         confirmLabel="Archive"
         danger
-        loading={saving}
+        loading={archiving}
       />
     </form>
   )

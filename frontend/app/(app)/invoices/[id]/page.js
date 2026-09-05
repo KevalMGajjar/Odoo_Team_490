@@ -18,6 +18,7 @@ import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, formatMoney } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const STAGES = [{ value: 'draft', label: 'Draft' }, { value: 'posted', label: 'Posted' }]
 
@@ -26,21 +27,17 @@ export default function InvoiceDetailPage() {
   const { user } = useAuth()
   const { push } = useToast()
   const { data: invoice, loading, error, reload } = useApiGet(`/invoices/${id}`)
-  const [posting, setPosting] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
 
-  const postInvoice = async () => {
-    setPosting(true)
+  const [postInvoice, posting] = useGuardedAction(async () => {
     try {
       await api.post(`/invoices/${id}/post`)
       push('Invoice posted — revenue and COGS entries created', { type: 'success' })
       reload()
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not post invoice', { type: 'error' })
-    } finally {
-      setPosting(false)
     }
-  }
+  })
 
   if (loading) {
     return (

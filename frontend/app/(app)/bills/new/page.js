@@ -13,6 +13,7 @@ import { ScanModal } from '@/components/ocr/ScanModal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function NewBillPage() {
   const router = useRouter()
@@ -23,16 +24,14 @@ export default function NewBillPage() {
   const [dueDate, setDueDate] = useState('')
   const [lines, setLines] = useState([blankProductLine()])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
 
   const canSubmit = vendor && lines.length > 0 && lines.every((l) => l.productId && Number(l.quantity) > 0)
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const bill = await api.post('/bills', {
         vendorId: vendor.id,
@@ -44,10 +43,8 @@ export default function NewBillPage() {
       router.replace(`/bills/${bill.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create bill')
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

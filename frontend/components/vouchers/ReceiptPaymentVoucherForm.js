@@ -10,6 +10,7 @@ import { VoucherLines, blankLine } from './VoucherLines'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const META = {
   BReceipt: { label: 'Bank Receipt', group: 'Bank', direction: 'Credit to party, Debit to bank' },
@@ -32,7 +33,6 @@ export function ReceiptPaymentVoucherForm({ voucherType }) {
   const [reference, setReference] = useState('')
   const [narration, setNarration] = useState('')
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   // load the filtered cash/bank accounts + the remembered default, and peek the next number
   useEffect(() => {
@@ -52,11 +52,10 @@ export function ReceiptPaymentVoucherForm({ voucherType }) {
   const total = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0)
   const canSubmit = cashBank && lines.every((l) => l.accountId && Number(l.amount) > 0) && total > 0
 
-  const submit = async (e) => {
+  const [submit, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
-    setSaving(true)
     try {
       const posted = await api.post('/vouchers', {
         voucherType,
@@ -74,10 +73,8 @@ export function ReceiptPaymentVoucherForm({ voucherType }) {
       router.push(`/journal-entries/${posted.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `Could not post ${meta.label.toLowerCase()}`)
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
   return (
     <div className="flex h-full flex-col">

@@ -12,6 +12,7 @@ import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth, canModify } from '@/lib/auth'
 import { formatMoney, formatNumber } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const emptyForm = { name: '', type: 'goods', categoryId: '', salesPrice: '', cost: '', gstRate: '18', trackInventory: false }
 
@@ -33,7 +34,6 @@ export function ProductForm({ product }) {
   )
   const [category, setCategory] = useState(product?.category ?? null)
   const [errors, setErrors] = useState({})
-  const [saving, setSaving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
 
   const set = (field) => (e) => {
@@ -41,10 +41,9 @@ export function ProductForm({ product }) {
     setForm((f) => ({ ...f, [field]: value, ...(field === 'type' && value === 'service' ? { trackInventory: false } : {}) }))
   }
 
-  const save = async (e) => {
+  const [save, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
     setErrors({})
-    setSaving(true)
     try {
       const payload = { ...form, categoryId: category?.id || null }
       if (isEdit) {
@@ -62,13 +61,10 @@ export function ProductForm({ product }) {
       } else {
         push(err.message || 'Could not save product', { type: 'error' })
       }
-    } finally {
-      setSaving(false)
     }
-  }
+  })
 
-  const archive = async () => {
-    setSaving(true)
+  const [archive, archiving] = useGuardedAction(async () => {
     try {
       await api.post(`/products/${product.id}/archive`)
       push('Product archived', { type: 'success' })
@@ -76,10 +72,9 @@ export function ProductForm({ product }) {
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {
-      setSaving(false)
       setConfirmArchive(false)
     }
-  }
+  })
 
   return (
     <form onSubmit={save}>
@@ -181,7 +176,7 @@ export function ProductForm({ product }) {
         consequence={`${product?.name} will no longer be selectable on new documents. This is refused if any stock remains on hand.`}
         confirmLabel="Archive"
         danger
-        loading={saving}
+        loading={archiving}
       />
     </form>
   )

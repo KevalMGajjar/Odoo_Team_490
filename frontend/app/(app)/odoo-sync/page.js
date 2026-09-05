@@ -11,6 +11,7 @@ import { useApiGet } from '@/lib/useApi'
 import { useToast } from '@/components/ui/Toast'
 import { api, ApiError } from '@/lib/api'
 import { formatMoney, formatDate } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 /**
  * One-directional, manually-triggered mirror to a live Odoo instance —
@@ -23,10 +24,7 @@ export default function OdooSyncPage() {
   const { push } = useToast()
   const { data: status, loading: statusLoading, reload: reloadStatus, error: statusError } = useApiGet('/odoo/status')
   const { data: entriesData, loading: entriesLoading, reload: reloadEntries } = useApiGet('/odoo/entries', undefined, { skip: Boolean(statusError) })
-  const [syncingMasters, setSyncingMasters] = useState(false)
-  const [syncingAll, setSyncingAll] = useState(false)
   const [syncingRow, setSyncingRow] = useState(null)
-  const [comparing, setComparing] = useState(false)
   const [comparison, setComparison] = useState(null)
 
   const reloadAll = () => { reloadStatus(); reloadEntries() }
@@ -48,8 +46,7 @@ export default function OdooSyncPage() {
     )
   }
 
-  const syncMasters = async () => {
-    setSyncingMasters(true)
+  const [syncMasters, syncingMasters] = useGuardedAction(async () => {
     try {
       const res = await api.post('/odoo/sync-masters')
       const total = Object.values(res.counts).reduce((a, b) => a + b, 0)
@@ -57,13 +54,10 @@ export default function OdooSyncPage() {
       reloadAll()
     } catch (err) {
       push(err.message || 'Master sync failed', { type: 'error' })
-    } finally {
-      setSyncingMasters(false)
     }
-  }
+  })
 
-  const syncAllEntries = async () => {
-    setSyncingAll(true)
+  const [syncAllEntries, syncingAll] = useGuardedAction(async () => {
     try {
       const res = await api.post('/odoo/sync-all-entries')
       if (res.total === 0) {
@@ -76,10 +70,8 @@ export default function OdooSyncPage() {
       reloadAll()
     } catch (err) {
       push(err.message || 'Bulk sync failed', { type: 'error' })
-    } finally {
-      setSyncingAll(false)
     }
-  }
+  })
 
   const syncOne = async (id) => {
     setSyncingRow(id)
@@ -94,8 +86,7 @@ export default function OdooSyncPage() {
     }
   }
 
-  const compareTrialBalance = async () => {
-    setComparing(true)
+  const [compareTrialBalance, comparing] = useGuardedAction(async () => {
     try {
       const [ours, theirs] = await Promise.all([
         api.get('/reports/trial-balance'),
@@ -114,10 +105,8 @@ export default function OdooSyncPage() {
       })
     } catch (err) {
       push(err.message || 'Could not fetch Odoo trial balance', { type: 'error' })
-    } finally {
-      setComparing(false)
     }
-  }
+  })
 
   const columns = [
     { key: 'number', header: 'Entry', render: (r) => <span className="font-mono text-xs">{r.number}</span> },

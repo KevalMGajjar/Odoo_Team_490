@@ -18,6 +18,7 @@ import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, formatMoney } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const STAGES = [{ value: 'draft', label: 'Draft' }, { value: 'posted', label: 'Posted' }]
 
@@ -26,21 +27,17 @@ export default function BillDetailPage() {
   const { user } = useAuth()
   const { push } = useToast()
   const { data: bill, loading, error, reload } = useApiGet(`/bills/${id}`)
-  const [posting, setPosting] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
 
-  const postBill = async () => {
-    setPosting(true)
+  const [postBill, posting] = useGuardedAction(async () => {
     try {
       await api.post(`/bills/${id}/post`)
       push('Bill posted — stock received, ledger updated', { type: 'success' })
       reload()
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not post bill', { type: 'error' })
-    } finally {
-      setPosting(false)
     }
-  }
+  })
 
   if (loading) {
     return (

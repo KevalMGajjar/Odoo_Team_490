@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ControlPanel } from '@/components/layout/ControlPanel'
@@ -15,6 +14,7 @@ import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 const STAGES = [
   { value: 'draft', label: 'Draft' },
@@ -27,32 +27,26 @@ export default function PurchaseOrderDetailPage() {
   const { user } = useAuth()
   const { push } = useToast()
   const { data: po, loading, error, reload } = useApiGet(`/purchase-orders/${id}`)
-  const [working, setWorking] = useState(false)
 
-  const confirm = async () => {
-    setWorking(true)
+  const [confirm, confirming] = useGuardedAction(async () => {
     try {
       await api.post(`/purchase-orders/${id}/confirm`)
       push('Purchase order confirmed', { type: 'success' })
       reload()
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not confirm', { type: 'error' })
-    } finally {
-      setWorking(false)
     }
-  }
+  })
 
-  const createBill = async () => {
-    setWorking(true)
+  const [createBill, creatingBill] = useGuardedAction(async () => {
     try {
       const bill = await api.post(`/purchase-orders/${id}/create-bill`)
       push(`Draft bill ${bill.number} created`, { type: 'success' })
       router.push(`/bills/${bill.id}`)
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not create bill', { type: 'error' })
-      setWorking(false)
     }
-  }
+  })
 
   if (loading) {
     return (
@@ -82,10 +76,10 @@ export default function PurchaseOrderDetailPage() {
           <>
             <Statusbar stages={STAGES} current={po.state} />
             {canWrite(user?.role) && po.state === 'draft' && (
-              <Button variant="primary" size="sm" onClick={confirm} loading={working}>Confirm</Button>
+              <Button variant="primary" size="sm" onClick={confirm} loading={confirming}>Confirm</Button>
             )}
             {canWrite(user?.role) && po.state === 'confirmed' && po.bills.length === 0 && (
-              <Button variant="primary" size="sm" onClick={createBill} loading={working}>Create Bill</Button>
+              <Button variant="primary" size="sm" onClick={createBill} loading={creatingBill}>Create Bill</Button>
             )}
           </>
         }
