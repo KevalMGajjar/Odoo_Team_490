@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import clsx from 'clsx'
+import { useRegisterPage } from '@/lib/navHistory'
 
 /**
  * The most Odoo thing you can build (UI.md §3): breadcrumb + record pager on
@@ -9,6 +10,10 @@ import clsx from 'clsx'
  * every screen — that repetition is what makes the app feel like one system.
  */
 export function ControlPanel({ breadcrumb, title, pager, actions, search, viewSwitcher, children }) {
+  // Each page contributes its own real title to the visited-page trail — the
+  // URL alone can't tell you a record is "BILL/2026/0013".
+  useRegisterPage(typeof title === 'string' ? title : null)
+
   return (
     <div className="sticky top-0 z-10 flex min-h-panel flex-wrap items-center gap-2 border-b border-line bg-surface-header px-4 py-2 print:hidden">
       <div className="flex min-w-0 items-center gap-1.5">

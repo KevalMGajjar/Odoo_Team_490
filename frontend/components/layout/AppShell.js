@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { NavTrail } from './NavTrail'
+import { NavHistoryProvider } from '@/lib/navHistory'
 
 /**
  * Sidebar + Topbar wrapper. Responsive per UI.md §7:
@@ -17,12 +19,15 @@ export function AppShell({ children }) {
     // print:h-auto/overflow-visible throughout this tree — a fixed-height,
     // overflow:auto layout only ever paints what's scrolled into view, so
     // without this a printed page would come out blank past the fold.
-    <div className="flex h-screen flex-col overflow-hidden bg-surface-bg print:h-auto print:overflow-visible">
-      <Topbar onMenuClick={() => setMobileOpen((v) => !v)} />
-      <div className="flex flex-1 overflow-hidden print:overflow-visible">
-        <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden print:overflow-visible">{children}</main>
+    <NavHistoryProvider>
+      <div className="flex h-screen flex-col overflow-hidden bg-surface-bg print:h-auto print:overflow-visible">
+        <Topbar onMenuClick={() => setMobileOpen((v) => !v)} />
+        <NavTrail />
+        <div className="flex flex-1 overflow-hidden print:overflow-visible">
+          <Sidebar mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden print:overflow-visible">{children}</main>
+        </div>
       </div>
-    </div>
+    </NavHistoryProvider>
   )
 }
