@@ -37,6 +37,8 @@ export function useApiGet(path, params, { skip = false } = {}) {
 /** List hook with search + pagination state, matching every masters/documents endpoint's { rows, total } shape. */
 export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
   const [search, setSearch] = useState('')
+  // Which single column the search is pinned to, if any (Odoo-style facet).
+  const [searchField, setSearchField] = useState(null)
   const [page, setPage] = useState(1)
   const extraKey = JSON.stringify(extraParams)
 
@@ -46,6 +48,7 @@ export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
 
   const { data, loading, error, reload } = useApiGet(path, {
     q: debouncedSearch || undefined,
+    qField: searchField || undefined,
     page,
     pageSize,
     ...extraParams,
@@ -55,7 +58,7 @@ export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
   useEffect(() => {
     setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, extraKey])
+  }, [debouncedSearch, searchField, extraKey])
 
   return {
     rows: data?.rows ?? [],
@@ -65,6 +68,8 @@ export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
     setPage,
     search,
     setSearch,
+    searchField,
+    setSearchField,
     loading,
     error,
     reload,

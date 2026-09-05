@@ -24,6 +24,7 @@ router.use('/contacts', crudRouter({
   createSchema: S.contactCreate,
   updateSchema: S.contactUpdate,
   searchFields: ['name', 'email', 'mobile', 'city'],
+  fuzzy: { table: 'contacts', columns: ['name', 'email', 'city'] },
   orderBy: { name: 'asc' },
   /**
    * `?type=vendor` / `?type=customer` narrows the picker to who may actually
@@ -73,6 +74,7 @@ router.use('/products', crudRouter({
   createSchema: S.productCreate,
   updateSchema: S.productUpdate,
   searchFields: ['name'],
+  fuzzy: { table: 'products', columns: ['name'] },
   orderBy: { name: 'asc' },
   include: { category: true, tax: true },
   auditActions: {
@@ -111,6 +113,7 @@ router.use('/accounts', crudRouter({
   createSchema: S.accountCreate,
   updateSchema: S.accountUpdate,
   searchFields: ['name', 'code'],
+  fuzzy: { table: 'chart_of_accounts', columns: ['name', 'code'] },
   orderBy: { code: 'asc' },
   eventPrefix: 'account',
   auditActions: {
@@ -165,6 +168,7 @@ router.use('/analytic-accounts', crudRouter({
   label: 'Analytic account',
   createSchema: S.analyticCreate,
   updateSchema: S.analyticUpdate,
+  fuzzy: { table: 'analytic_accounts', columns: ['name'] },
   orderBy: { name: 'asc' },
   eventPrefix: 'analytic',
   include: { budgetLines: { include: { budget: true }, orderBy: { budget: { createdAt: 'desc' } } } },

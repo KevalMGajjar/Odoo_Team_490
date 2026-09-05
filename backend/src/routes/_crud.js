@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js'
 import { verifyJWT, requireRole } from '../middleware/auth.js'
 import { writeAuditLog } from '../middleware/audit.js'
 import { broadcast } from '../lib/realtime.js'
+import { fuzzySearchIds } from '../lib/fuzzySearch.js'
 
 /**
  * CRUD router factory for master data.
@@ -34,6 +35,12 @@ export function crudRouter({
   include,
   select,
   listWhere = () => ({}),
+  /**
+   * Enables typo-tolerant search: { table, columns } naming the physical
+   * table/columns to match against. Without it, search falls back to exact
+   * substring matching.
+   */
+  fuzzy = null,
   beforeCreate,
   beforeUpdate,
   beforeArchive,
@@ -49,20 +56,58 @@ export function crudRouter({
   // ─────────────── list ───────────────
   router.get('/', verifyJWT, async (req, res, next) => {
     try {
-      const { q, status, page = '1', pageSize = String(DEFAULT_PAGE_SIZE) } = req.query
+      const { q, qField, status, page = '1', pageSize = String(DEFAULT_PAGE_SIZE) } = req.query
       const take = Math.min(Math.max(parseInt(pageSize, 10) || DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE)
       const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take
 
       const where = { ...listWhere(req) }
+      // Ranked ids from the trigram search, used to order results by relevance.
+      let ranked = null
       // Archived records are hidden unless explicitly asked for. Previously no
       // filter meant "show everything", so archiving a contact left it sitting
       // in the list looking active. `?status=all` still returns both.
       if (status === 'active' || status === 'archived') where.status = status
       else if (status !== 'all') where.status = 'active'
       if (q?.trim()) {
-        where.OR = searchFields.map((field) => ({
-          [field]: { contains: q.trim(), mode: 'insensitive' },
-        }))
+        // `qField` narrows the search to one column (the Odoo-style
+        // "Search Name for: …" suggestion). Validated against the configured
+        // columns rather than trusted — it reaches a SQL identifier.
+        const narrowed = qField && fuzzy?.columns.includes(qField) ? [qField] : null
+
+        if (fuzzy) {
+          // Typo-tolerant: "priyesh" finds "Priyanshu". Ids come back ranked,
+          // and the order is reapplied below because an `IN (...)` filter
+          // returns rows in table order, not match order.
+          ranked = await fuzzySearchIds({
+            ...fuzzy,
+            ...(narrowed ? { columns: narrowed } : {}),
+            query: q.trim(),
+          })
+          where.id = { in: ranked }
+        } else {
+          const fields = qField && searchFields.includes(qField) ? [qField] : searchFields
+          where.OR = fields.map((field) => ({
+            [field]: { contains: q.trim(), mode: 'insensitive' },
+          }))
+        }
+      }
+
+      if (ranked) {
+        // Relevance beats alphabetical while searching: fetch the matches,
+        // restore the ranked order, then page through it.
+        const matched = await db().findMany({
+          where,
+          ...(include ? { include } : {}),
+          ...(select ? { select } : {}),
+        })
+        const byId = new Map(matched.map((r) => [r.id, r]))
+        const ordered = ranked.map((id) => byId.get(id)).filter(Boolean)
+        return res.json({
+          rows: ordered.slice(skip, skip + take),
+          total: ordered.length,
+          page: Math.floor(skip / take) + 1,
+          pageSize: take,
+        })
       }
 
       const [rows, total] = await Promise.all([

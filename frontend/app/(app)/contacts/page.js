@@ -31,7 +31,7 @@ export default function ContactsListPage() {
   const { user } = useAuth()
   const [view, setView] = useState('list')
   const [status, setStatus] = useState('active')
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage, reload } = useApiList('/contacts', { extraParams: { status } })
+  const { rows, loading, search, setSearch, searchField, setSearchField, page, pageSize, total, setPage, reload } = useApiList('/contacts', { extraParams: { status } })
 
   const columns = [
     {
@@ -74,6 +74,9 @@ export default function ContactsListPage() {
           loading={loading}
           search={search}
           onSearchChange={setSearch}
+          searchColumns={[{ key: 'name', label: 'Name' }, { key: 'email', label: 'Email' }, { key: 'city', label: 'City' }]}
+          searchField={searchField}
+          onSearchFieldChange={setSearchField}
           page={page}
           pageSize={pageSize}
           total={total}

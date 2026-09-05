@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronUp, ChevronDown, Download, Search as SearchIcon } from 'lucide-react'
+import { ChevronUp, ChevronDown, Download } from 'lucide-react'
 import clsx from 'clsx'
 import { TableSkeleton } from './Skeleton'
 import { EmptyState } from './EmptyState'
+import { SearchBox } from './SearchBox'
 
 /**
  * Dense, sortable, paginated list view (UI.md §5.6): 32px rows, muted
@@ -32,6 +33,10 @@ export function DataTable({
   exportCsv,
   view = 'list',
   renderCard,
+  // Columns offered by the "search in" dropdown; omit for a plain search box.
+  searchColumns,
+  searchField,
+  onSearchFieldChange,
 }) {
   const [sort, setSort] = useState(null) // { key, dir }
 
@@ -62,15 +67,13 @@ export function DataTable({
       {(onSearchChange || toolbar || exportCsv) && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2">
           {onSearchChange && (
-            <div className="relative w-full max-w-xs">
-              <SearchIcon size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
-              <input
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search…"
-                className="field-input pl-7"
-              />
-            </div>
+            <SearchBox
+              value={search}
+              onChange={onSearchChange}
+              columns={searchColumns}
+              field={searchField}
+              onFieldChange={onSearchFieldChange}
+            />
           )}
           {toolbar}
           {exportCsv && (

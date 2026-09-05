@@ -31,7 +31,7 @@ export default function ProductsListPage() {
   const { user } = useAuth()
   const [view, setView] = useState('list')
   const [status, setStatus] = useState('active')
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage, reload } = useApiList('/products', { extraParams: { status } })
+  const { rows, loading, search, setSearch, searchField, setSearchField, page, pageSize, total, setPage, reload } = useApiList('/products', { extraParams: { status } })
 
   const columns = [
     {
@@ -74,6 +74,9 @@ export default function ProductsListPage() {
           loading={loading}
           search={search}
           onSearchChange={setSearch}
+          searchColumns={[{ key: 'name', label: 'Name' }]}
+          searchField={searchField}
+          onSearchFieldChange={setSearchField}
           page={page}
           pageSize={pageSize}
           total={total}
