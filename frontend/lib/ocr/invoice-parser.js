@@ -57,10 +57,18 @@ function extractVendorName(lines) {
   // first few non-empty lines, before "GSTIN"/"Invoice"/an address keyword.
   const stopWords = /gstin|invoice|bill\s*(no|to)|date|tax invoice|address/i
   for (const line of lines.slice(0, 6)) {
-    if (line.length < 3 || line.length > 80) continue
-    if (stopWords.test(line)) continue
-    if (/^\d+$/.test(line)) continue
-    return line
+    // Cut the line at its first stop word rather than discarding the whole
+    // row. Invoices routinely set "TAX INVOICE" beside the letterhead, and
+    // both a PDF text layer and OCR flatten anything sharing a baseline into
+    // one line — so the row arrives as "Azure Furniture Pvt Ltd TAX INVOICE".
+    // Skipping it took the street address as the vendor instead, which is
+    // both wrong and confidently wrong: the field is filled, so nothing about
+    // the result invites a second look.
+    const hit = line.search(stopWords)
+    const candidate = (hit >= 0 ? line.slice(0, hit) : line).trim()
+    if (candidate.length < 3 || candidate.length > 80) continue
+    if (/^\d+$/.test(candidate)) continue
+    return candidate
   }
   return null
 }
