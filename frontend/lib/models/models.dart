@@ -716,12 +716,12 @@ class SyncMeta {
 
 class SyncBulkResponse {
   final String syncedAt;
-  final AppUser user;
+  final AppUser? user;
   final Map<String, List<Map<String, dynamic>>> rawData;
 
   const SyncBulkResponse({
     required this.syncedAt,
-    required this.user,
+    this.user,
     required this.rawData,
   });
 
@@ -738,8 +738,8 @@ class SyncBulkResponse {
     }
 
     return SyncBulkResponse(
-      syncedAt: json['syncedAt'] as String,
-      user: AppUser.fromJson(json['user'] as Map<String, dynamic>),
+      syncedAt: json['syncedAt'] as String? ?? DateTime.now().toUtc().toIso8601String(),
+      user: json['user'] != null ? AppUser.fromJson(json['user'] as Map<String, dynamic>) : null,
       rawData: rawData,
     );
   }
