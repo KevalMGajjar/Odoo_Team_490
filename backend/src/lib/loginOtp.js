@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { prisma } from './prisma.js'
-import { deliver } from './mailer.js'
-import { unauthorized, invalidField } from './errors.js'
+import { deliver, smtpConfigured } from './mailer.js'
+import { unauthorized, invalidField, serviceUnavailable } from './errors.js'
 
 /**
  * Second factor for sign-in.
@@ -52,30 +52,40 @@ export async function issueChallenge(user) {
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
   const challengeId = crypto.randomBytes(32).toString('hex')
 
-  // The hash and the email commit together: a code the user was never sent is
-  // just a locked-out account, and an email for a code the database forgot is
-  // worse — it invites the user to type something that can never work.
-  const delivery = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        loginOtp: await bcrypt.hash(code, 10),
-        loginOtpExpires: new Date(Date.now() + TTL_MS),
-        loginOtpTries: 0,
-        loginChallenge: hashChallenge(challengeId),
-      },
-    })
-    return deliver({
-      to: user.email,
-      subject: 'Urban Furniture — your sign-in code',
-      body: [
-        `Your sign-in code is ${code}.`,
-        '',
-        'It expires in 10 minutes and can only be used once.',
-        'If you did not try to sign in, someone else knows your password — change it.',
-      ].join('\n'),
-    }, tx)
+  // Store first, send second, and never both inside one transaction — an SMTP
+  // handshake must not run with a database transaction held open (see the note
+  // in mailer.js, where doing exactly that cost 25 seconds and a rollback).
+  // A single update is atomic on its own, so nothing is lost by splitting them:
+  // the worst case is a valid code that failed to send, which is reported below
+  // rather than leaving someone waiting on mail that never comes.
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      loginOtp: await bcrypt.hash(code, 10),
+      loginOtpExpires: new Date(Date.now() + TTL_MS),
+      loginOtpTries: 0,
+      loginChallenge: hashChallenge(challengeId),
+    },
   })
+
+  const delivery = await deliver({
+    to: user.email,
+    subject: 'Urban Furniture — your sign-in code',
+    body: [
+      `Your sign-in code is ${code}.`,
+      '',
+      'It expires in 10 minutes and can only be used once.',
+      'If you did not try to sign in, someone else knows your password — change it.',
+    ].join('\n'),
+  })
+
+  // A configured mail server that failed is a real outage, not a mode. Saying
+  // "check your email" would strand the user on an inbox that will never
+  // receive anything, with no way to tell that from a slow delivery.
+  if (!delivery.delivered && smtpConfigured) {
+    await clearChallenge(user.id)
+    throw serviceUnavailable('We could not send your sign-in code. Please try again in a moment.')
+  }
 
   return { code, challengeId, expiresAt: new Date(Date.now() + TTL_MS), delivery }
 }

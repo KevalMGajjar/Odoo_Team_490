@@ -34,28 +34,52 @@ const transport = smtpConfigured
         : undefined,
       pool: true,
       maxConnections: 2,
+      // Nodemailer drops an idle pooled connection after one second, which
+      // means almost every sign-in pays the full TLS-and-auth handshake again
+      // — measured at 14s against Gmail, versus 2s on a live connection.
+      // Holding one open for a minute covers the gaps between logins.
+      maxIdleTime: 60_000,
+      // A sign-in waits on this, so an unresponsive mail server has to fail
+      // fast rather than hold the request until something else gives up.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     })
   : null
+
+// Gmail's first TLS-and-auth handshake costs the better part of a minute on a
+// cold connection. Paying it at boot rather than inside whoever happens to
+// sign in first is the difference between a snappy login and a 25-second one.
+if (transport) {
+  transport.verify().catch((err) => console.warn(`[mailer] SMTP not reachable: ${err.message}`))
+}
 
 /**
  * Record a message and try to send it.
  *
- * Never throws: a login must not fail because a mail server timed out. The
- * return value says what happened so the caller can react.
+ * Never throws: the caller decides what a failed send means, and the return
+ * value says what happened.
  *
- * @param tx a Prisma transaction client, when the outbox row must be part of
- *   the caller's transaction (the OTP hash and its email should commit or roll
- *   back together).
+ * Deliberately takes no transaction client. An earlier version wrote the
+ * outbox row inside the caller's interactive transaction so the record and the
+ * send would commit together — which meant an SMTP handshake ran with a
+ * Postgres transaction held open. Gmail's cold handshake took 25 seconds
+ * against a 5-second transaction timeout, and the whole thing rolled back
+ * *after* the mail had gone out. Even when it fits in the window it pins a
+ * connection and a snapshot for as long as someone else's mail server feels
+ * like taking.
+ *
+ * So: callers commit their own state first, then call this. The worst case
+ * becomes a code that is valid but undelivered, which the return value
+ * reports — never a delivered code the database has forgotten.
  */
-export async function deliver({ to, subject, body }, tx = prisma) {
-  const row = await tx.outbox.create({ data: { toEmail: to, subject, body } })
+export async function deliver({ to, subject, body }) {
+  const row = await prisma.outbox.create({ data: { toEmail: to, subject, body } })
 
   if (!transport) return { delivered: false, reason: 'smtp-not-configured', outboxId: row.id }
 
   try {
     await transport.sendMail({ from: FROM, to, subject, text: body })
-    // Deliberately outside the caller's transaction: the send already happened,
-    // and marking it sent must not be undone by a later rollback.
     await prisma.outbox.update({ where: { id: row.id }, data: { sentAt: new Date() } })
     return { delivered: true, outboxId: row.id }
   } catch (err) {

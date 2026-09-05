@@ -27,6 +27,7 @@ const assertEq = (a, e, n) =>
 const assertMoney = (a, e, n) =>
   Number(a) === Number(e) ? ok(`${n}  (${a})`) : bad(n, `expected ${e}, got ${a}`)
 const section = (t) => console.log(`\n\x1b[1m${t}\x1b[0m`)
+const skip = (n, why) => console.log(`  \x1b[33m-\x1b[0m ${n}\n      \x1b[2m${why}\x1b[0m`)
 
 const tokens = {}
 
@@ -78,6 +79,15 @@ async function login(as, loginId) {
 async function verifyLoginOtp() {
   const loginId = `otp${Date.now().toString().slice(-8)}`
   const password = derivePassword(loginId, 'demo123')
+  // With a real mail server configured, these probe accounts are @example.test
+  // addresses that cannot receive anything — the code would be sent into the
+  // void and never come back in the response. The flow is the same either way,
+  // so check it against the outbox rather than sending mail nobody can read.
+  const health = await api('/health', { as: null })
+  if (health.checks?.mail?.status === 'up') {
+    return skip('login OTP', 'SMTP is configured — run with SMTP_HOST unset to exercise the code path')
+  }
+
   const signup = await api('/auth/signup', {
     method: 'POST',
     as: null,
