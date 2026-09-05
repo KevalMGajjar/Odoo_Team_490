@@ -38,6 +38,8 @@ export const AUDIT_ACTIONS = Object.freeze({
   // ledger
   journal_entry_posted: 'journal_entry_posted',
   journal_entry_reversed: 'journal_entry_reversed',
+  journal_entry_draft_saved: 'journal_entry_draft_saved',
+  journal_entry_reset_to_draft: 'journal_entry_reset_to_draft',
 
   // documents
   purchase_order_created: 'purchase_order_created',

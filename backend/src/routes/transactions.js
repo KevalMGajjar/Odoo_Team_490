@@ -7,7 +7,7 @@ import { verifyJWT, requireRole, adminOnly } from '../middleware/auth.js'
 import { writeAuditLog, AUDIT_ACTIONS } from '../middleware/audit.js'
 import { broadcastDocument } from '../lib/realtime.js'
 import { nextNumber } from '../services/sequence.js'
-import { postEntry, reverseEntry, checkBalance, toDateOnly } from '../services/ledger.js'
+import { postEntry, reverseEntry, checkBalance, toDateOnly, postDraftEntry, resetEntryToDraft } from '../services/ledger.js'
 import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
 import { postPayment } from '../services/payment.js'
@@ -711,11 +711,11 @@ router.post('/vouchers', verifyJWT, canWrite, validate(S.voucherCreate), async (
 
 router.get('/journal-entries', verifyJWT, internalOnly, async (req, res, next) => {
   try {
-    const { q, kind, voucherType, from, to, page = '1', pageSize = '50' } = req.query
+    const { q, kind, voucherType, from, to, state, page = '1', pageSize = '50' } = req.query
     const take = Math.min(Math.max(parseInt(pageSize, 10) || 50, 1), 200)
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take
 
-    const where = { state: 'posted' }
+    const where = { state: state === 'draft' ? 'draft' : 'posted' }
     if (kind) where.kind = kind
     if (voucherType) where.voucherType = voucherType
     if (from || to) {
@@ -771,15 +771,39 @@ router.post('/journal-entries/check-balance', verifyJWT, internalOnly,
 router.post('/journal-entries', verifyJWT, canWrite, validate(S.journalEntryCreate),
   async (req, res, next) => {
     try {
-      const { journalId, date, reference, narration, items } = req.body
+      const { journalId, date, reference, narration, items, asDraft } = req.body
       const row = await prisma.$transaction(
-        (tx) => postEntry(tx, { journalId, date, reference, narration, items, userId: req.user.id }),
+        (tx) => postEntry(tx, { journalId, date, reference, narration, items, userId: req.user.id, asDraft: Boolean(asDraft) }),
         { timeout: 30000 },
       )
-      broadcastDocument('journalEntry:posted', { id: row.id, number: row.number })
+      broadcastDocument(asDraft ? 'journalEntry:draftSaved' : 'journalEntry:posted', { id: row.id, number: row.number })
       res.status(201).json(row)
     } catch (err) { next(err) }
   })
+
+/** Transitions a manually-saved draft to posted. */
+router.post('/journal-entries/:id/post', verifyJWT, canWrite, async (req, res, next) => {
+  try {
+    const row = await prisma.$transaction(
+      (tx) => postDraftEntry(tx, { entryId: req.params.id, userId: req.user.id }),
+      { timeout: 30000 },
+    )
+    broadcastDocument('journalEntry:posted', { id: row.id, number: row.number })
+    res.json(row)
+  } catch (err) { next(err) }
+})
+
+/** Only ever legal for a manually-created (kind 'standard') entry. */
+router.post('/journal-entries/:id/reset-to-draft', verifyJWT, canWrite, async (req, res, next) => {
+  try {
+    const row = await prisma.$transaction(
+      (tx) => resetEntryToDraft(tx, { entryId: req.params.id, userId: req.user.id }),
+      { timeout: 30000 },
+    )
+    broadcastDocument('journalEntry:resetToDraft', { id: row.id, number: row.number })
+    res.json(row)
+  } catch (err) { next(err) }
+})
 
 /**
  * The only way to undo a posting. Admin only — the original is never touched,

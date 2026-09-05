@@ -3,19 +3,21 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Undo2 } from 'lucide-react'
+import { Undo2, RotateCcw } from 'lucide-react'
 import { ControlPanel } from '@/components/layout/ControlPanel'
 import { FormSheet, FormGrid, FormSection } from '@/components/layout/FormSheet'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { DebitCreditGrid } from '@/components/documents/DebitCreditGrid'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/Modal'
 import { useApiGet } from '@/lib/useApi'
-import { useAuth } from '@/lib/auth'
+import { useAuth, canWrite } from '@/lib/auth'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 export default function JournalEntryDetailPage() {
   const { id } = useParams()
@@ -39,6 +41,26 @@ export default function JournalEntryDetailPage() {
       setConfirmReverse(false)
     }
   }
+
+  const [postDraft, posting] = useGuardedAction(async () => {
+    try {
+      await api.post(`/journal-entries/${id}/post`)
+      push('Entry posted', { type: 'success' })
+      reload()
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : 'Could not post', { type: 'error' })
+    }
+  })
+
+  const [resetToDraft, resetting] = useGuardedAction(async () => {
+    try {
+      await api.post(`/journal-entries/${id}/reset-to-draft`)
+      push('Entry reset to draft', { type: 'success' })
+      reload()
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : 'Could not reset to draft', { type: 'error' })
+    }
+  })
 
   if (loading) {
     return (
@@ -81,12 +103,20 @@ export default function JournalEntryDetailPage() {
         breadcrumb="Account"
         title={entry.voucherType ? `${entry.voucherType} #${entry.voucherNo}` : entry.number}
         actions={
-          user?.role === 'admin' &&
-          !entry.reversedBy && (
-            <Button variant="danger" size="sm" icon={Undo2} onClick={() => setConfirmReverse(true)}>
-              Reverse
-            </Button>
-          )
+          <>
+            <StatusBadge status={entry.state} />
+            {canWrite(user?.role) && entry.state === 'draft' && (
+              <Button variant="primary" size="sm" onClick={postDraft} loading={posting}>Post</Button>
+            )}
+            {canWrite(user?.role) && entry.state === 'posted' && entry.kind === 'standard' && !entry.reversedBy && (
+              <Button variant="secondary" size="sm" icon={RotateCcw} onClick={resetToDraft} loading={resetting}>Reset to Draft</Button>
+            )}
+            {user?.role === 'admin' && entry.state === 'posted' && !entry.reversedBy && (
+              <Button variant="danger" size="sm" icon={Undo2} onClick={() => setConfirmReverse(true)}>
+                Reverse
+              </Button>
+            )}
+          </>
         }
       />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">

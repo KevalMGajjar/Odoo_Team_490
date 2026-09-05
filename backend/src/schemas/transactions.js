@@ -177,6 +177,7 @@ export const journalEntryCreate = z.object({
   reference: note(60),
   narration: note(300),
   items: z.array(journalItemInput).min(2, 'A journal entry needs at least two lines'),
+  asDraft: z.coerce.boolean().default(false),
 })
 
 /** Drives the live Dr/Cr footer on the entry screen — no persistence. */

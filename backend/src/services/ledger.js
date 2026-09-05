@@ -104,8 +104,10 @@ export function assertBalanced(items = []) {
  */
 export async function postEntry(tx, {
   journalId, kind = 'standard', date, reference = null, narration = null,
-  items = [], userId = null,
+  items = [], userId = null, asDraft = false,
 }) {
+  // Even a draft must balance — "draft" here means "saved but not yet
+  // affecting reports," not a work-in-progress that's allowed to be wrong.
   const { totalDebit } = assertBalanced(items)
 
   const journal = await tx.journal.findUnique({
@@ -128,8 +130,8 @@ export async function postEntry(tx, {
       date: entryDate,
       reference,
       narration,
-      state: 'posted',
-      postedAt: new Date(),
+      state: asDraft ? 'draft' : 'posted',
+      postedAt: asDraft ? null : new Date(),
       createdBy: userId,
       items: {
         create: items.map((i) => ({
@@ -148,7 +150,7 @@ export async function postEntry(tx, {
   })
 
   await writeAuditLog(tx, {
-    action: AUDIT_ACTIONS.journal_entry_posted,
+    action: asDraft ? AUDIT_ACTIONS.journal_entry_draft_saved : AUDIT_ACTIONS.journal_entry_posted,
     entity_type: 'journal_entry',
     entity_id: entry.id,
     new_value: {
@@ -162,6 +164,66 @@ export async function postEntry(tx, {
   })
 
   return entry
+}
+
+/** Transitions a manually-saved draft entry to posted, re-validating balance
+ *  at transition time in case lines were edited while in draft. */
+export async function postDraftEntry(tx, { entryId, userId = null }) {
+  const entry = await tx.journalEntry.findUnique({ where: { id: entryId }, include: { items: true } })
+  if (!entry) throw notFound('Journal entry')
+  if (entry.state !== 'draft') throw conflict(`Only a draft entry can be posted (this one is ${entry.state})`)
+
+  assertBalanced(entry.items)
+
+  const updated = await tx.journalEntry.update({
+    where: { id: entryId },
+    data: { state: 'posted', postedAt: new Date() },
+    include: { items: true, journal: true },
+  })
+
+  await writeAuditLog(tx, {
+    action: AUDIT_ACTIONS.journal_entry_posted,
+    entity_type: 'journal_entry',
+    entity_id: entry.id,
+    old_value: { state: 'draft' },
+    new_value: { state: 'posted' },
+    performed_by: userId,
+  })
+
+  return updated
+}
+
+/**
+ * Reverse of the above — only ever legal for a manually-created entry
+ * (kind 'standard'). A system-generated entry (bill/invoice/payment/stock)
+ * backs a document whose own state (settleState, stock levels, ...) would
+ * desync from the ledger if its entry were pulled back to draft, so those
+ * are refused here rather than trusting the caller.
+ */
+export async function resetEntryToDraft(tx, { entryId, userId = null }) {
+  const entry = await tx.journalEntry.findUnique({ where: { id: entryId } })
+  if (!entry) throw notFound('Journal entry')
+  if (entry.kind !== 'standard') {
+    throw conflict(`${entry.number} was generated from a document and cannot be reset to draft here`)
+  }
+  if (entry.state !== 'posted') throw conflict(`Only a posted entry can be reset to draft (this one is ${entry.state})`)
+
+  const updated = await tx.journalEntry.update({
+    where: { id: entryId },
+    data: { state: 'draft', postedAt: null },
+    include: { items: true, journal: true },
+  })
+
+  await writeAuditLog(tx, {
+    action: AUDIT_ACTIONS.journal_entry_reset_to_draft,
+    entity_type: 'journal_entry',
+    entity_id: entry.id,
+    old_value: { state: 'posted' },
+    new_value: { state: 'draft' },
+    performed_by: userId,
+  })
+
+  return updated
 }
 
 /**

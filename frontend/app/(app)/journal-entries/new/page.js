@@ -27,7 +27,7 @@ export default function NewJournalEntryPage() {
   const balanced = gridIsBalanced(items)
   const canSubmit = balanced && journal && items.every((i) => i.accountId)
 
-  const [submit, saving] = useGuardedAction(async (e) => {
+  const [submit, saving] = useGuardedAction(async (e, asDraft = false) => {
     e.preventDefault()
     setError('')
     if (!canSubmit) return
@@ -37,6 +37,7 @@ export default function NewJournalEntryPage() {
         date,
         reference: reference || undefined,
         narration: narration || undefined,
+        asDraft,
         items: items
           .filter((i) => i.accountId)
           .map((i) => ({
@@ -48,10 +49,10 @@ export default function NewJournalEntryPage() {
             credit: Number(i.credit) || 0,
           })),
       })
-      push(`Entry ${entry.number} posted`, { type: 'success' })
+      push(asDraft ? `Entry ${entry.number} saved as draft` : `Entry ${entry.number} posted`, { type: 'success' })
       router.replace(`/journal-entries/${entry.id}`)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not post entry')
+      setError(err instanceof ApiError ? err.message : 'Could not save entry')
     }
   })
 
@@ -91,6 +92,16 @@ export default function NewJournalEntryPage() {
 
           <div className="mt-5 flex items-center justify-end gap-2 border-t border-line pt-4">
             <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={saving}
+              disabled={!canSubmit}
+              title={!balanced ? 'Debit and credit must be equal, even to save as a draft' : undefined}
+              onClick={(e) => submit(e, true)}
+            >
+              Save as Draft
+            </Button>
             <Button
               type="submit"
               variant="primary"
