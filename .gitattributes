@@ -1,0 +1,2 @@
+frontend/public/tesseract/** -text
+frontend/public/pdfjs/** -text

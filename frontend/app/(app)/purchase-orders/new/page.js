@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ScanLine } from 'lucide-react'
 import { ControlPanel } from '@/components/layout/ControlPanel'
 import { FormSheet, FormGrid, FormSection } from '@/components/layout/FormSheet'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { SearchSelect } from '@/components/ui/SearchSelect'
 import { Button } from '@/components/ui/Button'
 import { LineItemGrid, blankProductLine } from '@/components/documents/LineItemGrid'
+import { ScanModal } from '@/components/ocr/ScanModal'
 import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { toDateInput } from '@/lib/format'
@@ -21,6 +23,7 @@ export default function NewPurchaseOrderPage() {
   const [lines, setLines] = useState([blankProductLine()])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
 
   const canSubmit = vendor && lines.length > 0 && lines.every((l) => l.productId && Number(l.quantity) > 0)
 
@@ -46,7 +49,11 @@ export default function NewPurchaseOrderPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Purchase" title="New Purchase Order" />
+      <ControlPanel
+        breadcrumb="Purchase"
+        title="New Purchase Order"
+        actions={<Button type="button" variant="secondary" size="sm" icon={ScanLine} onClick={() => setScanOpen(true)}>Scan Invoice</Button>}
+      />
       <form onSubmit={submit} className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[1100px]">
           <FormSection>
@@ -72,6 +79,17 @@ export default function NewPurchaseOrderPage() {
           </div>
         </FormSheet>
       </form>
+
+      <ScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        partyRole="vendor"
+        onFill={({ party, date, lines: scannedLines }) => {
+          setVendor(party)
+          if (date) setOrderDate(date)
+          setLines(scannedLines)
+        }}
+      />
     </div>
   )
 }
