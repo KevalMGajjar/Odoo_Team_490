@@ -1,0 +1,809 @@
+// Urban Furniture — Accounting System
+// CANONICAL SCHEMA. PLAN.md §3 is narrative; this file wins.
+//
+// Design invariants:
+//   1. journal_items is the single source of truth. Every report derives from it.
+//   2. Every journal_entry satisfies SUM(debit) == SUM(credit), enforced in postEntry().
+//   3. debit/credit are ALWAYS in base currency. amount_currency holds the foreign amount.
+//   4. Posted entries are immutable — corrections are reversals.
+//   5. Inventory is perpetual, moving-average. Valuation must tie to the Inventory account.
+
+// queryCompiler + driverAdapters: pure JS/WASM query engine, no native binary.
+// Required here because this is Windows on ARM64 and Prisma ships only an x64
+// Windows query engine, which cannot load into an arm64 Node process.
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── enums ───────────────────────────
+
+enum Role {
+  admin
+  invoicing_user
+  contact
+}
+
+enum Status {
+  active
+  archived
+}
+
+enum ContactType {
+  customer
+  vendor
+  both
+}
+
+enum ProductType {
+  goods
+  service
+  combo
+}
+
+enum CostMethod {
+  average
+  standard
+}
+
+enum AccountType {
+  asset
+  liability
+  income
+  expense
+  capital
+}
+
+enum JournalType {
+  sales
+  purchase
+  bank
+  cash
+  miscellaneous
+}
+
+enum EntryState {
+  draft
+  posted
+  cancelled
+}
+
+enum EntryKind {
+  standard // manual entry
+  revenue // customer invoice
+  bill // vendor bill
+  payment // cash movement + settlement
+  cogs // cost of goods sold on delivery
+  fx // realised exchange difference
+  stock // inventory adjustment
+  opening // opening balances
+  reversal // mirror of another entry
+}
+
+enum DocState {
+  draft
+  confirmed
+  cancelled
+}
+
+enum MoveState {
+  draft
+  posted
+  cancelled
+}
+
+enum SettleState {
+  not_paid
+  partial
+  paid
+}
+
+enum PayDirection {
+  inbound // money received from a customer
+  outbound // money paid to a vendor
+}
+
+enum AnalyticType {
+  income
+  expense
+}
+
+/// Voucher entry screens. BReceipt/BPayment post through a bank journal,
+/// CReceipt/CPayment through a cash journal, Journal is unrestricted.
+enum VoucherType {
+  BReceipt
+  BPayment
+  CReceipt
+  CPayment
+  Journal
+}
+
+enum StockMoveType {
+  in
+  out
+  adjustment
+}
+
+// ─────────────────────────── identity ───────────────────────────
+
+model User {
+  id              String    @id @default(uuid())
+  name            String
+  email           String    @unique
+  password        String
+  role            Role
+  contactId       String?   @unique @map("contact_id")
+  status          Status    @default(active)
+  resetOtp        String?   @map("reset_otp")
+  resetOtpExpires DateTime? @map("reset_otp_expires")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  contact   Contact?   @relation(fields: [contactId], references: [id])
+  auditLogs AuditLog[] @relation("AuditPerformer")
+  budgets   Budget[]   @relation("BudgetOwner")
+
+  @@map("users")
+}
+
+// ─────────────────────────── currency ───────────────────────────
+
+model Currency {
+  id            String  @id @default(uuid())
+  code          String  @unique // "INR", "USD"
+  name          String
+  symbol        String
+  decimalPlaces Int     @default(2) @map("decimal_places")
+  isBase        Boolean @default(false) @map("is_base")
+  status        Status  @default(active)
+
+  rates            CurrencyRate[]
+  journalItems     JournalItem[]
+  purchaseOrders   PurchaseOrder[]
+  salesOrders      SalesOrder[]
+  vendorBills      VendorBill[]
+  customerInvoices CustomerInvoice[]
+  payments         Payment[]
+
+  @@map("currencies")
+}
+
+/// rate = how many BASE currency units equal 1 unit of this currency.
+/// USD rate 83.50 means 1 USD = 83.50 INR. Base currency always has rate 1.
+model CurrencyRate {
+  id         String   @id @default(uuid())
+  currencyId String   @map("currency_id")
+  date       DateTime @db.Date
+  rate       Decimal  @db.Decimal(18, 6)
+
+  currency Currency @relation(fields: [currencyId], references: [id], onDelete: Cascade)
+
+  @@unique([currencyId, date])
+  @@index([currencyId, date])
+  @@map("currency_rates")
+}
+
+// ─────────────────────────── master data ───────────────────────────
+
+model Contact {
+  id           String      @id @default(uuid())
+  name         String
+  type         ContactType
+  email        String?
+  mobile       String?
+  city         String?
+  state        String?
+  pincode      String?
+  profileImage String?     @map("profile_image")
+  status       Status      @default(active)
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  user           User?
+  purchaseOrders PurchaseOrder[]
+  salesOrders    SalesOrder[]
+  bills          VendorBill[]
+  invoices       CustomerInvoice[]
+  payments       Payment[]
+  journalItems   JournalItem[]
+
+  @@index([type, status])
+  @@map("contacts")
+}
+
+model ProductCategory {
+  id       String   @id @default(uuid())
+  name     String   @unique
+  status   Status   @default(active)
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id             String      @id @default(uuid())
+  name           String
+  type           ProductType
+  categoryId     String?     @map("category_id")
+  salesPrice     Decimal     @default(0) @map("sales_price") @db.Decimal(14, 2)
+  cost           Decimal     @default(0) @db.Decimal(14, 2) // purchase price reference
+  /// GST % shown as a column on the Product master and used as the default
+  /// tax rate on every purchase/sales line for this product. AUTHORITATIVE —
+  /// `taxId` below is only an optional named preset that populates this value.
+  gstRate        Decimal     @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  taxId          String?     @map("tax_id")
+  status         Status      @default(active)
+
+  // ── perpetual inventory ──
+  trackInventory Boolean    @default(false) @map("track_inventory")
+  costMethod     CostMethod @default(average) @map("cost_method")
+  /// Maintained inside the same transaction as every stock move.
+  /// stock_valuation_layers is the append-only audit of how these evolved.
+  onHandQty      Decimal    @default(0) @map("on_hand_qty") @db.Decimal(14, 3)
+  avgCost        Decimal    @default(0) @map("avg_cost") @db.Decimal(14, 4)
+
+  // ── default accounts (fall back to journal defaults when null) ──
+  incomeAccountId    String? @map("income_account_id")
+  expenseAccountId   String? @map("expense_account_id")
+  inventoryAccountId String? @map("inventory_account_id")
+  cogsAccountId      String? @map("cogs_account_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  category         ProductCategory?      @relation(fields: [categoryId], references: [id])
+  tax              Tax?                  @relation(fields: [taxId], references: [id])
+  incomeAccount    ChartOfAccount?       @relation("ProductIncome", fields: [incomeAccountId], references: [id])
+  expenseAccount   ChartOfAccount?       @relation("ProductExpense", fields: [expenseAccountId], references: [id])
+  inventoryAccount ChartOfAccount?       @relation("ProductInventory", fields: [inventoryAccountId], references: [id])
+  cogsAccount      ChartOfAccount?       @relation("ProductCogs", fields: [cogsAccountId], references: [id])
+  poLines          PurchaseOrderLine[]
+  soLines          SalesOrderLine[]
+  billLines        VendorBillLine[]
+  invLines         CustomerInvoiceLine[]
+  stockMoves       StockMove[]
+  valuationLayers  StockValuationLayer[]
+  adjustmentLines  StockAdjustmentLine[]
+
+  @@index([status, type])
+  @@map("products")
+}
+
+/// Named GST presets ("GST 18%") selectable on the Product master.
+/// Choosing one fills Product.gstRate, which remains the authoritative value.
+model Tax {
+  id     String  @id @default(uuid())
+  name   String // "GST 18%"
+  rate   Decimal @db.Decimal(5, 2)
+  status Status  @default(active)
+
+  products Product[]
+
+  @@map("taxes")
+}
+
+model ChartOfAccount {
+  id        String      @id @default(uuid())
+  code      String      @unique // drives report ordering
+  name      String
+  type      AccountType
+  status    Status      @default(active)
+  /// Marks real cash/bank ledgers. Receipt and payment voucher screens filter
+  /// the bank/cash side of the entry to accounts with this flag set.
+  isCashBank Boolean    @default(false) @map("is_cash_bank")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  journalItems      JournalItem[]
+  journalsAsDebit   Journal[]     @relation("JournalDefaultDebit")
+  journalsAsCredit  Journal[]     @relation("JournalDefaultCredit")
+  productsIncome    Product[]     @relation("ProductIncome")
+  productsExpense   Product[]     @relation("ProductExpense")
+  productsInventory Product[]     @relation("ProductInventory")
+  productsCogs      Product[]     @relation("ProductCogs")
+  billLines         VendorBillLine[]
+  invoiceLines      CustomerInvoiceLine[]
+
+  @@index([type, code])
+  @@map("chart_of_accounts")
+}
+
+model Journal {
+  id              String      @id @default(uuid())
+  name            String
+  type            JournalType
+  code            String      @unique // "INV", "BILL", "BNK", "CSH", "MISC"
+  defaultDebitId  String?     @map("default_debit_id")
+  defaultCreditId String?     @map("default_credit_id")
+  status          Status      @default(active)
+
+  defaultDebit  ChartOfAccount? @relation("JournalDefaultDebit", fields: [defaultDebitId], references: [id])
+  defaultCredit ChartOfAccount? @relation("JournalDefaultCredit", fields: [defaultCreditId], references: [id])
+  entries       JournalEntry[]
+  payments      Payment[]
+
+  @@map("journals")
+}
+
+// ─────────────────── THE LEDGER (source of truth) ───────────────────
+
+model JournalEntry {
+  id           String     @id @default(uuid())
+  number       String     @unique // "INV/2026/0001"
+  journalId    String     @map("journal_id")
+  kind         EntryKind  @default(standard)
+  date         DateTime   @db.Date // accounting date
+  reference    String? // source document number
+  narration    String?
+  state        EntryState @default(draft)
+  postedAt     DateTime?  @map("posted_at")
+  createdBy    String?    @map("created_by")
+  reversalOfId String?    @unique @map("reversal_of_id")
+
+  /// Voucher identity, when this entry was raised from a voucher screen.
+  /// voucherNo restarts at 1 per voucherType per financial year (Apr–Mar).
+  /// The `transactions` SQL view projects these rows in the flat voucher shape.
+  voucherType VoucherType? @map("voucher_type")
+  voucherNo   Int?         @map("voucher_no")
+  fiscalYear  Int?         @map("fiscal_year")
+
+  journal    Journal          @relation(fields: [journalId], references: [id])
+  items      JournalItem[]
+  reversalOf JournalEntry?    @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversedBy JournalEntry?    @relation("Reversal")
+  bill       VendorBill?      @relation("BillEntry")
+  invoice    CustomerInvoice? @relation("InvoiceEntry")
+  invoiceCogs CustomerInvoice? @relation("InvoiceCogsEntry")
+  payment    Payment?         @relation("PaymentEntry")
+  stockMoves StockMove[]
+  adjustment StockAdjustment? @relation("AdjustmentEntry")
+
+  @@unique([voucherType, fiscalYear, voucherNo])
+  @@index([state, date])
+  @@index([kind])
+  @@index([voucherType, fiscalYear])
+  @@map("journal_entries")
+}
+
+model JournalItem {
+  id                String  @id @default(uuid())
+  entryId           String  @map("entry_id")
+  accountId         String  @map("account_id")
+  partnerId         String? @map("partner_id")
+  analyticAccountId String? @map("analytic_account_id")
+  label             String?
+
+  /// ALWAYS in base currency. All reports read these two columns.
+  debit  Decimal @default(0) @db.Decimal(14, 2)
+  credit Decimal @default(0) @db.Decimal(14, 2)
+
+  /// Foreign-currency amount (signed: +debit / -credit). Null when the
+  /// document is already in base currency.
+  currencyId     String?  @map("currency_id")
+  amountCurrency Decimal? @map("amount_currency") @db.Decimal(14, 2)
+
+  entry           JournalEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account         ChartOfAccount   @relation(fields: [accountId], references: [id])
+  partner         Contact?         @relation(fields: [partnerId], references: [id])
+  analyticAccount AnalyticAccount? @relation(fields: [analyticAccountId], references: [id])
+  currency        Currency?        @relation(fields: [currencyId], references: [id])
+
+  @@index([accountId])
+  @@index([partnerId])
+  @@index([analyticAccountId])
+  @@map("journal_items")
+}
+
+// ─────────────────────── analytic + budget ───────────────────────
+
+model AnalyticAccount {
+  id     String       @id @default(uuid())
+  name   String
+  type   AnalyticType
+  status Status       @default(active)
+
+  budgets      Budget[]
+  journalItems JournalItem[]
+  poLines      PurchaseOrderLine[]
+  soLines      SalesOrderLine[]
+  billLines    VendorBillLine[]
+  invoiceLines CustomerInvoiceLine[]
+
+  @@map("analytic_accounts")
+}
+
+model Budget {
+  id                String   @id @default(uuid())
+  name              String
+  analyticAccountId String   @map("analytic_account_id")
+  startDate         DateTime @map("start_date") @db.Date
+  endDate           DateTime @map("end_date") @db.Date
+  plannedAmount     Decimal  @map("planned_amount") @db.Decimal(14, 2)
+  responsibleId     String?  @map("responsible_id")
+  status            Status   @default(active)
+
+  analyticAccount AnalyticAccount @relation(fields: [analyticAccountId], references: [id])
+  responsible     User?           @relation("BudgetOwner", fields: [responsibleId], references: [id])
+
+  @@map("budgets")
+}
+
+// ─────────────────────── purchase chain ───────────────────────
+
+model PurchaseOrder {
+  id           String   @id @default(uuid())
+  number       String   @unique // "PO/2026/0001"
+  vendorId     String   @map("vendor_id")
+  orderDate    DateTime @map("order_date") @db.Date
+  state        DocState @default(draft)
+  currencyId   String   @map("currency_id")
+  exchangeRate Decimal  @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  untaxed      Decimal  @default(0) @db.Decimal(14, 2)
+  taxAmount    Decimal  @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  total        Decimal  @default(0) @db.Decimal(14, 2)
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  vendor   Contact             @relation(fields: [vendorId], references: [id])
+  currency Currency            @relation(fields: [currencyId], references: [id])
+  lines    PurchaseOrderLine[]
+  bills    VendorBill[]
+
+  @@index([state])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id                String  @id @default(uuid())
+  orderId           String  @map("order_id")
+  productId         String  @map("product_id")
+  description       String?
+  quantity          Decimal @db.Decimal(14, 3)
+  unitPrice         Decimal @map("unit_price") @db.Decimal(14, 2)
+  taxRate           Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  subtotal          Decimal @db.Decimal(14, 2)
+  analyticAccountId String? @map("analytic_account_id")
+  qtyBilled         Decimal @default(0) @map("qty_billed") @db.Decimal(14, 3)
+
+  order           PurchaseOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  analyticAccount AnalyticAccount? @relation(fields: [analyticAccountId], references: [id])
+
+  @@map("purchase_order_lines")
+}
+
+model VendorBill {
+  id              String      @id @default(uuid())
+  number          String      @unique // "BILL/2026/0001"
+  vendorId        String      @map("vendor_id")
+  purchaseOrderId String?     @map("purchase_order_id")
+  billDate        DateTime    @map("bill_date") @db.Date
+  dueDate         DateTime?   @map("due_date") @db.Date
+  state           MoveState   @default(draft)
+  settleState     SettleState @default(not_paid) @map("settle_state")
+  currencyId      String      @map("currency_id")
+  exchangeRate    Decimal     @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  untaxed         Decimal     @default(0) @db.Decimal(14, 2)
+  taxAmount       Decimal     @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  total           Decimal     @default(0) @db.Decimal(14, 2)
+  amountResidual  Decimal     @default(0) @map("amount_residual") @db.Decimal(14, 2)
+  journalEntryId  String?     @unique @map("journal_entry_id")
+  createdBy       String?     @map("created_by")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  vendor        Contact             @relation(fields: [vendorId], references: [id])
+  currency      Currency            @relation(fields: [currencyId], references: [id])
+  purchaseOrder PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id])
+  journalEntry  JournalEntry?       @relation("BillEntry", fields: [journalEntryId], references: [id])
+  lines         VendorBillLine[]
+  allocations   PaymentAllocation[]
+  stockMoves    StockMove[]
+
+  @@index([state, settleState])
+  @@map("vendor_bills")
+}
+
+model VendorBillLine {
+  id                String  @id @default(uuid())
+  billId            String  @map("bill_id")
+  productId         String  @map("product_id")
+  accountId         String  @map("account_id") // Inventory (tracked) or Expense
+  description       String?
+  quantity          Decimal @db.Decimal(14, 3)
+  unitPrice         Decimal @map("unit_price") @db.Decimal(14, 2)
+  taxRate           Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  subtotal          Decimal @db.Decimal(14, 2)
+  analyticAccountId String? @map("analytic_account_id")
+
+  bill            VendorBill       @relation(fields: [billId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  account         ChartOfAccount   @relation(fields: [accountId], references: [id])
+  analyticAccount AnalyticAccount? @relation(fields: [analyticAccountId], references: [id])
+
+  @@map("vendor_bill_lines")
+}
+
+// ─────────────────────── sales chain ───────────────────────
+
+model SalesOrder {
+  id           String   @id @default(uuid())
+  number       String   @unique // "SO/2026/0001"
+  customerId   String   @map("customer_id")
+  orderDate    DateTime @map("order_date") @db.Date
+  state        DocState @default(draft)
+  currencyId   String   @map("currency_id")
+  exchangeRate Decimal  @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  untaxed      Decimal  @default(0) @db.Decimal(14, 2)
+  taxAmount    Decimal  @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  total        Decimal  @default(0) @db.Decimal(14, 2)
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  customer Contact           @relation(fields: [customerId], references: [id])
+  currency Currency          @relation(fields: [currencyId], references: [id])
+  lines    SalesOrderLine[]
+  invoices CustomerInvoice[]
+
+  @@index([state])
+  @@map("sales_orders")
+}
+
+model SalesOrderLine {
+  id                String  @id @default(uuid())
+  orderId           String  @map("order_id")
+  productId         String  @map("product_id")
+  description       String?
+  quantity          Decimal @db.Decimal(14, 3)
+  unitPrice         Decimal @map("unit_price") @db.Decimal(14, 2)
+  taxRate           Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  subtotal          Decimal @db.Decimal(14, 2)
+  analyticAccountId String? @map("analytic_account_id")
+  qtyInvoiced       Decimal @default(0) @map("qty_invoiced") @db.Decimal(14, 3)
+
+  order           SalesOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  analyticAccount AnalyticAccount? @relation(fields: [analyticAccountId], references: [id])
+
+  @@map("sales_order_lines")
+}
+
+model CustomerInvoice {
+  id             String      @id @default(uuid())
+  number         String      @unique // "INV/2026/0001"
+  customerId     String      @map("customer_id")
+  salesOrderId   String?     @map("sales_order_id")
+  invoiceDate    DateTime    @map("invoice_date") @db.Date
+  dueDate        DateTime?   @map("due_date") @db.Date
+  state          MoveState   @default(draft)
+  settleState    SettleState @default(not_paid) @map("settle_state")
+  currencyId     String      @map("currency_id")
+  exchangeRate   Decimal     @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  untaxed        Decimal     @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal     @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  total          Decimal     @default(0) @db.Decimal(14, 2)
+  amountResidual Decimal     @default(0) @map("amount_residual") @db.Decimal(14, 2)
+
+  /// Revenue entry (Dr Debtors / Cr Income + Tax)
+  journalEntryId String? @unique @map("journal_entry_id")
+  /// Separate COGS entry (Dr COGS / Cr Inventory) — only when tracked goods are sold
+  cogsEntryId    String? @unique @map("cogs_entry_id")
+
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  customer     Contact               @relation(fields: [customerId], references: [id])
+  currency     Currency              @relation(fields: [currencyId], references: [id])
+  salesOrder   SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  journalEntry JournalEntry?         @relation("InvoiceEntry", fields: [journalEntryId], references: [id])
+  cogsEntry    JournalEntry?         @relation("InvoiceCogsEntry", fields: [cogsEntryId], references: [id])
+  lines        CustomerInvoiceLine[]
+  allocations  PaymentAllocation[]
+  stockMoves   StockMove[]
+
+  @@index([state, settleState])
+  @@index([customerId])
+  @@map("customer_invoices")
+}
+
+model CustomerInvoiceLine {
+  id                String  @id @default(uuid())
+  invoiceId         String  @map("invoice_id")
+  productId         String  @map("product_id")
+  accountId         String  @map("account_id") // income account
+  description       String?
+  quantity          Decimal @db.Decimal(14, 3)
+  unitPrice         Decimal @map("unit_price") @db.Decimal(14, 2)
+  taxRate           Decimal @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  subtotal          Decimal @db.Decimal(14, 2)
+  analyticAccountId String? @map("analytic_account_id")
+  /// Moving-average cost consumed at post time — frozen for margin reporting.
+  cogsUnitCost      Decimal @default(0) @map("cogs_unit_cost") @db.Decimal(14, 4)
+
+  invoice         CustomerInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product         Product          @relation(fields: [productId], references: [id])
+  account         ChartOfAccount   @relation(fields: [accountId], references: [id])
+  analyticAccount AnalyticAccount? @relation(fields: [analyticAccountId], references: [id])
+
+  @@map("customer_invoice_lines")
+}
+
+// ─────────────────────────── payments ───────────────────────────
+
+model Payment {
+  id             String       @id @default(uuid())
+  number         String       @unique // "PAY/2026/0001"
+  direction      PayDirection
+  partnerId      String       @map("partner_id")
+  journalId      String       @map("journal_id") // Bank or Cash
+  paymentDate    DateTime     @map("payment_date") @db.Date
+  currencyId     String       @map("currency_id")
+  exchangeRate   Decimal      @default(1) @map("exchange_rate") @db.Decimal(18, 6)
+  amount         Decimal      @db.Decimal(14, 2)
+  state          MoveState    @default(draft)
+  journalEntryId String?      @unique @map("journal_entry_id")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  partner      Contact             @relation(fields: [partnerId], references: [id])
+  journal      Journal             @relation(fields: [journalId], references: [id])
+  currency     Currency            @relation(fields: [currencyId], references: [id])
+  journalEntry JournalEntry?       @relation("PaymentEntry", fields: [journalEntryId], references: [id])
+  allocations  PaymentAllocation[]
+
+  @@index([state, direction])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id        String  @id @default(uuid())
+  paymentId String  @map("payment_id")
+  invoiceId String? @map("invoice_id")
+  billId    String? @map("bill_id")
+  amount    Decimal @db.Decimal(14, 2)
+
+  payment Payment          @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice CustomerInvoice? @relation(fields: [invoiceId], references: [id])
+  bill    VendorBill?      @relation(fields: [billId], references: [id])
+
+  @@map("payment_allocations")
+}
+
+// ──────────────────── perpetual inventory ────────────────────
+
+model StockMove {
+  id        String        @id @default(uuid())
+  productId String        @map("product_id")
+  moveType  StockMoveType
+  /// Always positive; moveType carries the direction.
+  quantity  Decimal       @db.Decimal(14, 3)
+  unitCost  Decimal       @map("unit_cost") @db.Decimal(14, 4)
+  date      DateTime      @db.Date
+  reference String?
+
+  vendorBillId      String? @map("vendor_bill_id")
+  customerInvoiceId String? @map("customer_invoice_id")
+  adjustmentId      String? @map("adjustment_id")
+  journalEntryId    String? @map("journal_entry_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product         Product              @relation(fields: [productId], references: [id])
+  vendorBill      VendorBill?          @relation(fields: [vendorBillId], references: [id])
+  customerInvoice CustomerInvoice?     @relation(fields: [customerInvoiceId], references: [id])
+  adjustment      StockAdjustment?     @relation(fields: [adjustmentId], references: [id])
+  journalEntry    JournalEntry?        @relation(fields: [journalEntryId], references: [id])
+  valuationLayer  StockValuationLayer?
+
+  @@index([productId, date])
+  @@map("stock_moves")
+}
+
+/// Append-only audit of every change to a product's quantity and average cost.
+/// Never updated — this is what makes the valuation report explainable line by line.
+model StockValuationLayer {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  stockMoveId String   @unique @map("stock_move_id")
+  /// Signed: positive on receipt, negative on delivery.
+  quantity    Decimal  @db.Decimal(14, 3)
+  unitCost    Decimal  @map("unit_cost") @db.Decimal(14, 4)
+  /// quantity * unitCost, signed. SUM(value) == Inventory account balance.
+  value       Decimal  @db.Decimal(14, 2)
+  qtyAfter    Decimal  @map("qty_after") @db.Decimal(14, 3)
+  avgCostAfter Decimal @map("avg_cost_after") @db.Decimal(14, 4)
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  product   Product   @relation(fields: [productId], references: [id])
+  stockMove StockMove @relation(fields: [stockMoveId], references: [id], onDelete: Cascade)
+
+  @@index([productId, date])
+  @@map("stock_valuation_layers")
+}
+
+model StockAdjustment {
+  id             String    @id @default(uuid())
+  number         String    @unique // "ADJ/2026/0001"
+  date           DateTime  @db.Date
+  reason         String?
+  state          MoveState @default(draft)
+  journalEntryId String?   @unique @map("journal_entry_id")
+  createdBy      String?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  journalEntry JournalEntry?         @relation("AdjustmentEntry", fields: [journalEntryId], references: [id])
+  lines        StockAdjustmentLine[]
+  stockMoves   StockMove[]
+
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentLine {
+  id           String  @id @default(uuid())
+  adjustmentId String  @map("adjustment_id")
+  productId    String  @map("product_id")
+  systemQty    Decimal @map("system_qty") @db.Decimal(14, 3)
+  countedQty   Decimal @map("counted_qty") @db.Decimal(14, 3)
+  delta        Decimal @db.Decimal(14, 3)
+  unitCost     Decimal @map("unit_cost") @db.Decimal(14, 4)
+
+  adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product    Product         @relation(fields: [productId], references: [id])
+
+  @@map("stock_adjustment_lines")
+}
+
+// ─────────────────────── infrastructure ───────────────────────
+
+model Sequence {
+  id     String @id @default(uuid())
+  code   String // "INV", "BILL", "PO", "SO", "PAY", "ADJ", "MISC"
+  prefix String
+  year   Int
+  next   Int    @default(1)
+
+  @@unique([code, year])
+  @@map("sequences")
+}
+
+/// Small per-user key/value store. Backs "remember the last bank/cash account
+/// used on a voucher", sidebar expansion state, last-used report filters, etc.
+model UserPreference {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  key    String
+  value  String
+
+  @@unique([userId, key])
+  @@map("user_preferences")
+}
+
+/// Local stand-in for SMTP so nothing leaves the machine (offline requirement).
+model Outbox {
+  id        String    @id @default(uuid())
+  toEmail   String    @map("to_email")
+  subject   String
+  body      String
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("outbox")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  oldValue    Json?    @map("old_value")
+  newValue    Json?    @map("new_value")
+  performedBy String?  @map("performed_by")
+  performedAt DateTime @default(now()) @map("performed_at")
+
+  performer User? @relation("AuditPerformer", fields: [performedBy], references: [id])
+
+  @@index([entityType, performedAt])
+  @@index([action])
+  @@map("audit_log")
+}
