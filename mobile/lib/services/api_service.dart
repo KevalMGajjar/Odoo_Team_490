@@ -5,6 +5,42 @@ import 'password.dart';
 
 /// Central HTTP Client wrapper utilizing Dio with automatic JWT bearer token injection
 /// and uniform error handling for offline/network issues.
+/// What a sign-in attempt produced.
+///
+/// Either a session, or a pending challenge waiting on an emailed code — never
+/// both, and the caller has to look at which before using it. A plain map
+/// would have let a null `user` reach the UI as a cast error at runtime.
+class LoginResult {
+  final AppUser? user;
+  final String? token;
+  final String? challengeId;
+  final String sentTo;
+
+  /// Only ever set when the server has no mail transport to carry the code, so
+  /// an offline install is still usable. Never populated by a deployed server.
+  final String? devOtp;
+
+  const LoginResult._({
+    this.user,
+    this.token,
+    this.challengeId,
+    this.sentTo = '',
+    this.devOtp,
+  });
+
+  factory LoginResult.signedIn({required AppUser user, String? token}) =>
+      LoginResult._(user: user, token: token);
+
+  factory LoginResult.challenge({
+    required String challengeId,
+    required String sentTo,
+    String? devOtp,
+  }) =>
+      LoginResult._(challengeId: challengeId, sentTo: sentTo, devOtp: devOtp);
+
+  bool get needsCode => challengeId != null;
+}
+
 class ApiService {
   late final Dio _dio;
   String? _token;
@@ -50,7 +86,12 @@ class ApiService {
   ///
   /// The backend authenticates by Login ID, not email — email is a separate,
   /// non-credential field on the user record.
-  Future<Map<String, dynamic>> login({
+  ///
+  /// A correct password does not always produce a session. Most accounts get a
+  /// 6-digit code by email instead, and the returned [LoginResult] carries the
+  /// challenge to redeem via [verifyLogin]. The seeded demo accounts skip the
+  /// code and come back signed in, so `result.user` is non-null for those.
+  Future<LoginResult> login({
     required String loginId,
     required String password,
   }) async {
@@ -62,22 +103,44 @@ class ApiService {
         ApiConfig.login,
         data: {'loginId': loginId, 'password': derived},
       );
-
-      final data = response.data as Map<String, dynamic>;
-      final userJson = data['user'] as Map<String, dynamic>;
-      final token = data['token'] as String?;
-
-      if (token != null) {
-        setToken(token);
-      }
-
-      return {
-        'user': AppUser.fromJson(userJson),
-        'token': token,
-      };
+      return _loginResult(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _parseDioError(e);
     }
+  }
+
+  /// POST /auth/login/verify — exchange an emailed code for a session.
+  Future<LoginResult> verifyLogin({
+    required String challengeId,
+    required String otp,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiConfig.loginVerify,
+        data: {'challengeId': challengeId, 'otp': otp},
+      );
+      return _loginResult(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw _parseDioError(e);
+    }
+  }
+
+  LoginResult _loginResult(Map<String, dynamic> data) {
+    final challengeId = data['challengeId'] as String?;
+    if (challengeId != null) {
+      return LoginResult.challenge(
+        challengeId: challengeId,
+        sentTo: data['sentTo'] as String? ?? '',
+        devOtp: data['devOtp'] as String?,
+      );
+    }
+
+    final token = data['token'] as String?;
+    if (token != null) setToken(token);
+    return LoginResult.signedIn(
+      user: AppUser.fromJson(data['user'] as Map<String, dynamic>),
+      token: token,
+    );
   }
 
   /// GET /auth/me

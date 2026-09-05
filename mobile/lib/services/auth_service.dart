@@ -51,11 +51,28 @@ class AuthService {
     } catch (_) {}
   }
 
-  /// Perform login (by Login ID) and persist credentials & user info.
-  Future<AppUser> login(String loginId, String password) async {
+  /// Step one of sign-in (by Login ID).
+  ///
+  /// Returns either a signed-in result or a pending challenge — see
+  /// [LoginResult]. Only a signed-in result touches the session, so a pending
+  /// challenge leaves any previous session and cached data exactly as they
+  /// were: a half-finished sign-in must not sign the current user out.
+  Future<LoginResult> login(String loginId, String password) async {
     final result = await _apiService.login(loginId: loginId, password: password);
-    final user = result['user'] as AppUser;
-    final token = result['token'] as String?;
+    if (!result.needsCode) await _establishSession(result);
+    return result;
+  }
+
+  /// Step two: redeem the emailed code.
+  Future<LoginResult> verifyLogin(String challengeId, String otp) async {
+    final result = await _apiService.verifyLogin(challengeId: challengeId, otp: otp);
+    await _establishSession(result);
+    return result;
+  }
+
+  Future<void> _establishSession(LoginResult result) async {
+    final user = result.user!;
+    final token = result.token;
 
     // The offline cache is device-wide, not per-user. Keeping it across a
     // change of user would show one person's company data to the next one who
@@ -78,8 +95,6 @@ class AuthService {
       _apiService.setToken(token);
       await authBox.put(_tokenKey, token);
     }
-
-    return user;
   }
 
   /// Verify session with server if online, or return cached user

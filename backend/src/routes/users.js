@@ -10,8 +10,10 @@ import { userCreateSchema, userUpdateSchema } from '../schemas/auth.js'
 /**
  * Admin-only user management — the only path that can create an Admin
  * account. Bespoke rather than the generic crudRouter so the list/detail
- * `select` can exclude `password`/`resetOtp` explicitly rather than relying
- * on every call site to remember to trim them.
+ * `select` is an allowlist. That is what keeps the row's secrets — the
+ * password hash, the reset code, the sign-in challenge — out of responses
+ * without every call site having to remember to trim them, and it holds for
+ * secrets added to the model later.
  */
 
 const router = express.Router()

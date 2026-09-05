@@ -31,10 +31,25 @@ export function AuthProvider({ children }) {
     refresh()
   }, [refresh])
 
+  /**
+   * Step one of sign-in.
+   *
+   * Resolves either to `{ user }` — the account skipped the second factor and
+   * is now signed in — or to `{ challenge }`, meaning a code was emailed and
+   * `verifyLogin` has to finish the job. Callers branch on which key is set.
+   */
   const login = useCallback(async (loginId, password) => {
     // The typed password never leaves the browser — only its PBKDF2 derivation.
     const derived = await derivePassword(loginId, password)
-    const { user } = await api.post('/auth/login', { loginId, password: derived })
+    const res = await api.post('/auth/login', { loginId, password: derived })
+    if (res.challengeId) return { challenge: res }
+    setUser(res.user)
+    return { user: res.user }
+  }, [])
+
+  /** Step two: redeem the emailed code for a session. */
+  const verifyLogin = useCallback(async (challengeId, otp) => {
+    const { user } = await api.post('/auth/login/verify', { challengeId, otp })
     setUser(user)
     return user
   }, [])
@@ -48,7 +63,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, verifyLogin, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )

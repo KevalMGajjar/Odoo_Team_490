@@ -162,6 +162,14 @@ model User {
   status          Status    @default(active)
   resetOtp        String?   @map("reset_otp")
   resetOtpExpires DateTime? @map("reset_otp_expires")
+  /// Second factor for sign-in. The password step leaves a pending challenge
+  /// here; only POST /auth/login/verify with the right code turns it into a
+  /// session. `loginChallenge` is a SHA-256 of the opaque id handed to the
+  /// client, so knowing a Login ID is not enough to submit code guesses.
+  loginOtp        String?   @map("login_otp")
+  loginOtpExpires DateTime? @map("login_otp_expires")
+  loginOtpTries   Int       @default(0) @map("login_otp_tries")
+  loginChallenge  String?   @map("login_challenge")
   createdAt       DateTime  @default(now()) @map("created_at")
 
   contact   Contact?   @relation(fields: [contactId], references: [id])

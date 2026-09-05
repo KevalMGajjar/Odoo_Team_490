@@ -6,7 +6,8 @@ import { unauthorized, conflict, invalidField, notFound } from '../lib/errors.js
 import { validate } from '../middleware/validate.js'
 import { verifyJWT, signToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js'
 import { writeAuditLog, AUDIT_ACTIONS } from '../middleware/audit.js'
-import { signupSchema, loginSchema, forgotSchema, resetSchema } from '../schemas/auth.js'
+import { signupSchema, loginSchema, loginVerifySchema, forgotSchema, resetSchema } from '../schemas/auth.js'
+import { bypassesOtp, issueChallenge, consumeChallenge } from '../lib/loginOtp.js'
 
 const router = express.Router()
 
@@ -41,15 +42,43 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
       return created
     })
 
-    const token = signToken(user)
-    setAuthCookie(res, token)
-    // The token is also returned in the body so non-browser clients (the
-    // companion view-only app) can hold it and send `Authorization: Bearer`.
-    res.status(201).json({ user: publicUser(user), token })
+    // No session yet. Signing in requires a code sent to this address on every
+    // login, so an address the user cannot actually open would lock them out of
+    // the account they just made — the first code is what proves they can read
+    // it. Same challenge shape as /login, so the client reuses one screen.
+    const { code, challengeId, expiresAt, delivery } = await issueChallenge(user)
+    res.status(201).json({
+      challengeId,
+      expiresAt,
+      sentTo: maskEmail(user.email),
+      ...(process.env.NODE_ENV === 'development' && !delivery.delivered ? { devOtp: code } : {}),
+    })
   } catch (err) { next(err) }
 })
 
 // ─────────────────────────── login ────────────────────────────
+/** Issue the session. Shared by the bypass path and by OTP verification, so
+ *  there is exactly one place that decides what a signed-in response is. */
+function grantSession(res, user) {
+  const token = signToken(user)
+  setAuthCookie(res, token)
+  // Browser clients use the httpOnly cookie and can ignore `token`.
+  // Native / other-origin clients store it and send `Authorization: Bearer <token>`.
+  return res.json({ user: publicUser(user), token, expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
+}
+
+/**
+ * Step one: the password.
+ *
+ * A correct password does not sign you in — it mails a 6-digit code and
+ * returns a challenge to redeem at /login/verify. The seeded demo accounts are
+ * the exception; their mailboxes are not ones a person trying the app can open.
+ *
+ * Both outcomes are 200 with a body that says which happened, rather than a
+ * 202 for one of them: the client has to branch on the shape anyway, and a
+ * status code that means "kept your request" would be describing something
+ * else.
+ */
 router.post('/login', validate(loginSchema), async (req, res, next) => {
   try {
     const { loginId, password } = req.body
@@ -61,13 +90,43 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     }
     if (user.status === 'archived') throw unauthorized('This account has been deactivated')
 
-    const token = signToken(user)
-    setAuthCookie(res, token)
-    // Browser clients use the httpOnly cookie and can ignore `token`.
-    // Native / other-origin clients store it and send `Authorization: Bearer <token>`.
-    res.json({ user: publicUser(user), token, expiresIn: process.env.JWT_EXPIRES_IN || '7d' })
+    if (bypassesOtp(user.loginId)) return grantSession(res, user)
+
+    const { code, challengeId, expiresAt, delivery } = await issueChallenge(user)
+    res.json({
+      challengeId,
+      expiresAt,
+      // Enough to confirm the right inbox without printing an address that the
+      // person at the keyboard might not be entitled to see.
+      sentTo: maskEmail(user.email),
+      // With no mail server there is no inbox to check, so the code comes back
+      // in the response — otherwise the second factor would simply lock
+      // everyone out of an offline install. Guarded to development so a
+      // deployed instance can never do this, whatever its SMTP settings.
+      ...(process.env.NODE_ENV === 'development' && !delivery.delivered ? { devOtp: code } : {}),
+    })
   } catch (err) { next(err) }
 })
+
+/** Step two: the code. */
+router.post('/login/verify', validate(loginVerifySchema), async (req, res, next) => {
+  try {
+    const { challengeId, otp } = req.body
+    const user = await consumeChallenge({ challengeId, otp })
+    // Checked again rather than trusted from step one: minutes may have passed,
+    // and an account deactivated in between must not still get a session.
+    if (user.status === 'archived') throw unauthorized('This account has been deactivated')
+    grantSession(res, user)
+  } catch (err) { next(err) }
+})
+
+/** `priyanshu@example.com` → `p•••••••u@example.com`. */
+function maskEmail(address) {
+  const [name, domain] = String(address).split('@')
+  if (!domain) return '•••'
+  const shown = name.length <= 2 ? name[0] : `${name[0]}${'•'.repeat(name.length - 2)}${name.at(-1)}`
+  return `${shown}@${domain}`
+}
 
 // ─────────────────────────── session ──────────────────────────
 router.post('/logout', (req, res) => {

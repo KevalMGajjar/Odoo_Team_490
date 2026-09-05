@@ -67,6 +67,46 @@ async function login(as, loginId) {
   return r.user
 }
 
+/**
+ * Sign-in's second factor.
+ *
+ * The demo accounts above already prove the bypass works — reaching them at all
+ * means they skipped the code. What is left to prove is that everyone else
+ * cannot: that a correct password alone grants nothing, and that a challenge is
+ * single-use.
+ */
+async function verifyLoginOtp() {
+  const loginId = `otp${Date.now().toString().slice(-8)}`
+  const password = derivePassword(loginId, 'demo123')
+  const signup = await api('/auth/signup', {
+    method: 'POST',
+    as: null,
+    body: { name: 'OTP Probe', loginId, email: `${loginId}@example.test`, password, confirmPassword: password },
+  })
+  assert(!signup.token && Boolean(signup.challengeId), 'signup does not hand out a session before the email is proved',
+    `got ${JSON.stringify(signup).slice(0, 120)}`)
+  if (!signup.devOtp) {
+    return bad('login OTP', 'no devOtp in the response — run the API with NODE_ENV=development and no SMTP')
+  }
+
+  // Finish signup so the account is usable, then start a real sign-in on it.
+  await api('/auth/login/verify', { method: 'POST', as: null, body: { challengeId: signup.challengeId, otp: signup.devOtp } })
+
+  const step1 = await api('/auth/login', { method: 'POST', as: null, body: { loginId, password } })
+  assert(!step1.token && Boolean(step1.challengeId), 'a non-demo password alone does not sign you in',
+    `got ${JSON.stringify(step1).slice(0, 120)}`)
+  assert(/^.•*.@/.test(step1.sentTo ?? ''), 'the destination address is masked', `got ${step1.sentTo}`)
+
+  const wrong = await api('/auth/login/verify', { method: 'POST', as: null, body: { challengeId: step1.challengeId, otp: '000000' }, raw: true })
+  assert(wrong.status >= 400 && !wrong.json?.token, 'a wrong code grants nothing', `status ${wrong.status}`)
+
+  const right = await api('/auth/login/verify', { method: 'POST', as: null, body: { challengeId: step1.challengeId, otp: step1.devOtp } })
+  assert(Boolean(right.token), 'the emailed code completes sign-in', right.message)
+
+  const replay = await api('/auth/login/verify', { method: 'POST', as: null, body: { challengeId: step1.challengeId, otp: step1.devOtp }, raw: true })
+  assertEq(replay.status, 401, 'a spent challenge cannot be replayed')
+}
+
 async function main() {
   console.log('\n\x1b[1m═══ API end-to-end verification ═══\x1b[0m')
   console.log(`\x1b[2m${BASE}\x1b[0m`)
@@ -79,6 +119,7 @@ async function main() {
   assertEq(admin.role, 'admin', 'admin signs in and receives a bearer token')
   assertEq(await status('/auth/me', { as: 'acct' }), 200, 'bearer token authenticates')
   assertEq(await status('/auth/me', { as: null }), 401, 'no token is rejected')
+  await verifyLoginOtp()
 
   // ─────────── fixtures ───────────
   const { rows: vendors } = await api('/contacts?q=Azure')

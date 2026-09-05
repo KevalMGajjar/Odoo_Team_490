@@ -53,6 +53,7 @@ class ApiConfig {
 
   /// Endpoints
   static const String login = '/auth/login';
+  static const String loginVerify = '/auth/login/verify';
   static const String signup = '/auth/signup';
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';

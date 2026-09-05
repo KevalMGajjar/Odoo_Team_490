@@ -27,6 +27,7 @@ import { STORAGE_ROOT, PUBLIC_PREFIX } from './services/fileStore.js'
 import { apiLimiter, authLimiter, writeLimiter } from './middleware/rateLimit.js'
 import { invalidateReportsOnWrite, cacheStats } from './lib/cache.js'
 import { breakerStats } from './lib/circuitBreaker.js'
+import { mailerStatus } from './lib/mailer.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -121,6 +122,10 @@ app.get('/health', async (req, res) => {
   checks.ai = process.env.AI_ENABLED === 'true'
     ? { status: 'configured', model: process.env.AI_MODEL, offline: /localhost|127\.0\.0\.1/.test(process.env.AI_BASE_URL ?? '') }
     : { status: 'disabled', detail: 'Optional — document entry works without it' }
+
+  // Sign-in codes go out over this. A broken SMTP would otherwise be
+  // discovered by a user not receiving a code and having no way to say so.
+  checks.mail = await mailerStatus()
 
   // Surfaced so an open breaker or a cold cache is visible rather than
   // something you have to infer from behaviour.

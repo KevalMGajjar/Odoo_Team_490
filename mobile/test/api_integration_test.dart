@@ -38,15 +38,18 @@ void main() {
       final api = ApiService();
       final result = await api.login(loginId: 'admin01', password: 'demo123');
 
-      final user = result['user'] as AppUser;
+      final user = result.user!;
       expect(user.loginId, 'admin01');
       expect(user.role, 'admin');
       expect(user.isAdmin, isTrue);
       expect(user.isInternal, isTrue);
       expect(user.isPortal, isFalse);
+      // A demo account skips the emailed code — that is what makes one-tap
+      // demo sign-in possible, and what this test depends on.
+      expect(result.needsCode, isFalse);
       // A bearer token is required for every later call on a native client.
-      expect(result['token'], isA<String>());
-      expect((result['token'] as String).isNotEmpty, isTrue);
+      expect(result.token, isA<String>());
+      expect(result.token!.isNotEmpty, isTrue);
     });
 
     test('a portal user is recognised as portal', () async {
@@ -56,7 +59,7 @@ void main() {
       }
       final api = ApiService();
       final result = await api.login(loginId: 'nimesh01', password: 'demo123');
-      final user = result['user'] as AppUser;
+      final user = result.user!;
 
       expect(user.role, 'user');
       // Regression guard: this read role == 'contact' and was always false,
@@ -104,7 +107,7 @@ void main() {
       }
       final api = ApiService();
       final result = await api.login(loginId: 'nimesh01', password: 'demo123');
-      final user = result['user'] as AppUser;
+      final user = result.user!;
 
       // Portal users are refused by every company-wide endpoint, so syncing
       // them down the staff path produced nothing but 403s and an empty app.

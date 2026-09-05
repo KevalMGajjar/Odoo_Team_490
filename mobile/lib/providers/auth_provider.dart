@@ -45,22 +45,50 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Sign in with Login ID and password
+  /// A sign-in waiting on an emailed code, or null when none is outstanding.
+  LoginResult? get pendingChallenge => _pendingChallenge;
+  LoginResult? _pendingChallenge;
+
+  /// Step one: Login ID and password.
+  ///
+  /// Returns true when there is now a session. When it returns false, check
+  /// [pendingChallenge] — a code was sent and [verifyCode] finishes the job —
+  /// before treating it as a failure; only a null challenge means [error].
   Future<bool> login(String loginId, String password) async {
+    return _attempt(() => _authService.login(loginId, password));
+  }
+
+  /// Step two: the emailed code.
+  Future<bool> verifyCode(String otp) async {
+    final challenge = _pendingChallenge;
+    if (challenge == null) return false;
+    return _attempt(() => _authService.verifyLogin(challenge.challengeId!, otp));
+  }
+
+  /// Abandon a pending challenge and return to the credentials form.
+  void cancelChallenge() {
+    _pendingChallenge = null;
+    _error = null;
+    notifyListeners();
+  }
+
+  Future<bool> _attempt(Future<LoginResult> Function() run) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      await _authService.login(loginId, password);
-      _isLoading = false;
-      notifyListeners();
-      return true;
+      final result = await run();
+      // A challenge is not a failure and not a session — it is the flow asking
+      // for one more thing, so it clears the error but grants nothing.
+      _pendingChallenge = result.needsCode ? result : null;
+      return !result.needsCode;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
       _isLoading = false;
       notifyListeners();
-      return false;
     }
   }
 
@@ -68,6 +96,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
+    _pendingChallenge = null;
     try {
       await _authService.logout();
     } finally {

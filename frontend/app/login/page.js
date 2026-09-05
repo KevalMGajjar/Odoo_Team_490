@@ -7,6 +7,7 @@ import { useAuth, ApiError } from '@/lib/auth'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 import { useGuardedAction } from '@/lib/useGuardedAction'
+import { VerifyCodeScreen } from '@/components/auth/VerifyCodeScreen'
 
 /**
  * Quick-login buttons are demo-day insurance (IDEAS.md §5.5) — never fumble
@@ -19,22 +20,66 @@ const DEMO_ACCOUNTS = [
 ]
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, verifyLogin } = useAuth()
   const router = useRouter()
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
+  // Set once the password is accepted and a code has been sent. Its presence
+  // is what swaps the form over to the code step.
+  const [challenge, setChallenge] = useState(null)
+  const [otp, setOtp] = useState('')
+
+  const go = (user) => router.replace(user.role === 'user' ? '/portal' : '/dashboard')
 
   const [doLogin, loading] = useGuardedAction(async (e, overrideLoginId) => {
     e?.preventDefault()
     setError('')
     try {
-      const user = await login(overrideLoginId ?? loginId, password)
-      router.replace(user.role === 'user' ? '/portal' : '/dashboard')
+      const res = await login(overrideLoginId ?? loginId, password)
+      if (res.challenge) {
+        setChallenge(res.challenge)
+        // Only ever present with no mail server to carry the code — see the
+        // note on the /auth/login route.
+        setOtp(res.challenge.devOtp ?? '')
+        return
+      }
+      go(res.user)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong')
     }
   })
+
+  const [doVerify, verifying] = useGuardedAction(async (e) => {
+    e?.preventDefault()
+    setError('')
+    try {
+      go(await verifyLogin(challenge.challengeId, otp))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong')
+      // An expired or exhausted challenge cannot be retried — 401 means the
+      // code step is over, so send them back rather than leaving them typing
+      // into a box that can no longer work.
+      if (err instanceof ApiError && err.status === 401) {
+        setChallenge(null)
+        setOtp('')
+      }
+    }
+  })
+
+  if (challenge) {
+    return (
+      <VerifyCodeScreen
+        challenge={challenge}
+        otp={otp}
+        setOtp={setOtp}
+        error={error}
+        loading={verifying}
+        onSubmit={doVerify}
+        onBack={() => { setChallenge(null); setOtp(''); setError('') }}
+      />
+    )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-bg px-4">

@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/Button'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 import { api } from '@/lib/api'
 import { derivePassword, passwordStrengthError } from '@/lib/password'
+import { VerifyCodeScreen } from '@/components/auth/VerifyCodeScreen'
 
-/** Self-service sign-up always creates an Accountant — Admin accounts are
- *  provisioned by another admin, Portal Users from the Contact master. */
+/** Self-service sign-up always creates the least-privileged role. Admin and
+ *  Accountant accounts are provisioned by an admin; Portal Users come from the
+ *  Contact master. */
 export default function SignUpPage() {
-  const { refresh } = useAuth()
+  const { verifyLogin } = useAuth()
   const router = useRouter()
   const [name, setName] = useState('')
   const [loginId, setLoginId] = useState('')
@@ -22,6 +24,10 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [errors, setErrors] = useState({})
   const [error, setError] = useState('')
+  // Creating the account does not sign you in — it emails a code that proves
+  // you can read the address, because every later sign-in needs one too.
+  const [challenge, setChallenge] = useState(null)
+  const [otp, setOtp] = useState('')
 
   const [submit, loading] = useGuardedAction(async (e) => {
     e.preventDefault()
@@ -33,14 +39,14 @@ export default function SignUpPage() {
       if (password !== confirmPassword) { setErrors({ confirmPassword: 'Passwords do not match' }); return }
 
       const derived = await derivePassword(loginId, password)
-      await api.post('/auth/signup', {
+      const res = await api.post('/auth/signup', {
         name, loginId, email,
         // Both are derived so the server compares like with like.
         password: derived,
         confirmPassword: password === confirmPassword ? derived : await derivePassword(loginId, confirmPassword),
       })
-      await refresh()
-      router.replace('/dashboard')
+      setChallenge(res)
+      setOtp(res.devOtp ?? '')
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
         setErrors(err.fieldErrorMap())
@@ -49,6 +55,36 @@ export default function SignUpPage() {
       }
     }
   })
+
+  const [doVerify, verifying] = useGuardedAction(async (e) => {
+    e.preventDefault()
+    setError('')
+    try {
+      const user = await verifyLogin(challenge.challengeId, otp)
+      router.replace(user.role === 'user' ? '/portal' : '/dashboard')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong')
+    }
+  })
+
+  if (challenge) {
+    return (
+      <VerifyCodeScreen
+        challenge={challenge}
+        otp={otp}
+        setOtp={setOtp}
+        error={error}
+        loading={verifying}
+        onSubmit={doVerify}
+        title="Confirm your email"
+        // The account already exists; only the code is outstanding. Sending
+        // them back to a prefilled form would invite a second signup attempt
+        // that can only fail on a duplicate Login ID.
+        onBack={() => router.replace('/login')}
+        backLabel="Back to sign in"
+      />
+    )
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-bg px-4 py-10">

@@ -36,13 +36,22 @@ export const signupSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   })
-// Self-signup always creates an Accountant — Admin accounts are provisioned by
-// another admin (POST /users), and Portal Users are created from the Contact
-// master, never by self-signup.
+// Self-signup always creates the least-privileged role, `user`. An admin
+// promotes from there (PUT /users/:id); the client cannot pick its own role.
 
 export const loginSchema = z.object({
   loginId: z.string().trim().min(1, 'Login ID is required'),
   password: z.string().min(1, 'Password is required'),
+})
+
+/**
+ * Step two of sign-in. The challenge id stands in for the credentials — it is
+ * proof the password step already succeeded, so this step does not (and must
+ * not) take the password again.
+ */
+export const loginVerifySchema = z.object({
+  challengeId: z.string().regex(/^[a-f0-9]{64}$/, 'That sign-in request is not valid'),
+  otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
 export const forgotSchema = z.object({ email })

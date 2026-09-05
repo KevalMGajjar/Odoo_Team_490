@@ -35,7 +35,13 @@ export const authLimiter = rateLimit({
   skip,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
-    const id = String(req.body?.loginId ?? req.body?.email ?? '').trim().toLowerCase()
+    // The OTP step carries no Login ID — the challenge id identifies the
+    // account instead, and counting per challenge is what caps code guessing
+    // at this layer. (loginOtp.js also burns the challenge after 5 tries; this
+    // is the outer bound, in case someone opens many challenges at once.)
+    const id = String(
+      req.body?.loginId ?? req.body?.email ?? req.body?.challengeId ?? '',
+    ).trim().toLowerCase()
     return `${req.ip}:${id}`
   },
   handler: json('Too many attempts. Please wait a few minutes and try again.'),
