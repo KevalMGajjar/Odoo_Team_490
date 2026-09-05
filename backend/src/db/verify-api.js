@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { derivePassword } from '../lib/password.js'
 
 /**
  * End-to-end API verification against a running server.
@@ -55,7 +56,12 @@ async function assertStatus(path, opts, expected, name) {
 }
 
 async function login(as, loginId) {
-  const r = await api('/auth/login', { method: 'POST', body: { loginId, password: 'demo123' }, as: null })
+  // Mirrors the browser: the raw password never goes over the wire.
+  const r = await api('/auth/login', {
+    method: 'POST',
+    body: { loginId, password: derivePassword(loginId, 'demo123') },
+    as: null,
+  })
   if (!r.token) throw new Error(`login failed for ${loginId}: ${r.message}`)
   tokens[as] = r.token
   return r.user

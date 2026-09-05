@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import { derivePassword } from '../lib/password.js'
 
 /**
  * Master data for Urban Furniture.
@@ -195,17 +196,21 @@ export async function seedMasters(tx, { log = () => {} } = {}) {
   log(`  analytic accounts ${ANALYTIC_ACCOUNTS.length}`)
 
   // ── users (all demo123, surfaced as quick-login buttons) ──
-  const hash = await bcrypt.hash('demo123', 10)
+  // Passwords are salted per Login ID client-side, so each demo account needs
+  // its own hash — one shared hash would only work for whichever Login ID it
+  // was derived from. 'demo123' deliberately breaks the strength rules the
+  // signup form enforces; those apply to real signups, not seeded demo logins.
+  const hashFor = (loginId) => bcrypt.hash(derivePassword(loginId, 'demo123'), 10)
   const users = {}
   users.admin = await tx.user.create({
-    data: { name: 'Keval Gajjar', loginId: 'admin01', email: 'admin@urbanfurniture.com', password: hash, role: 'admin' },
+    data: { name: 'Keval Gajjar', loginId: 'admin01', email: 'admin@urbanfurniture.com', password: await hashFor('admin01'), role: 'admin' },
   })
   users.accountant = await tx.user.create({
-    data: { name: 'Priya Desai', loginId: 'accountant1', email: 'accountant@urbanfurniture.com', password: hash, role: 'accountant' },
+    data: { name: 'Priya Desai', loginId: 'accountant1', email: 'accountant@urbanfurniture.com', password: await hashFor('accountant1'), role: 'accountant' },
   })
   users.portal = await tx.user.create({
     data: {
-      name: 'Nimesh Pathak', loginId: 'nimesh01', email: 'nimesh@example.com', password: hash,
+      name: 'Nimesh Pathak', loginId: 'nimesh01', email: 'nimesh@example.com', password: await hashFor('nimesh01'),
       role: 'user', contactId: contacts['Nimesh Pathak'].id,
     },
   })

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 import '../models/models.dart';
+import 'password.dart';
 
 /// Central HTTP Client wrapper utilizing Dio with automatic JWT bearer token injection
 /// and uniform error handling for offline/network issues.
@@ -54,9 +55,12 @@ class ApiService {
     required String password,
   }) async {
     try {
+      // The raw password never goes over the wire — only its PBKDF2
+      // derivation, matching the web client exactly.
+      final derived = await PasswordDerivation.derive(loginId, password);
       final response = await _dio.post(
         ApiConfig.login,
-        data: {'loginId': loginId, 'password': password},
+        data: {'loginId': loginId, 'password': derived},
       );
 
       final data = response.data as Map<String, dynamic>;

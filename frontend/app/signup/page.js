@@ -8,6 +8,7 @@ import { FormField, TextInput } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 import { api } from '@/lib/api'
+import { derivePassword, passwordStrengthError } from '@/lib/password'
 
 /** Self-service sign-up always creates an Accountant — Admin accounts are
  *  provisioned by another admin, Portal Users from the Contact master. */
@@ -27,12 +28,22 @@ export default function SignUpPage() {
     setError('')
     setErrors({})
     try {
-      await api.post('/auth/signup', { name, loginId, email, password, confirmPassword })
+      const weak = passwordStrengthError(password)
+      if (weak) { setErrors({ password: weak }); return }
+      if (password !== confirmPassword) { setErrors({ confirmPassword: 'Passwords do not match' }); return }
+
+      const derived = await derivePassword(loginId, password)
+      await api.post('/auth/signup', {
+        name, loginId, email,
+        // Both are derived so the server compares like with like.
+        password: derived,
+        confirmPassword: password === confirmPassword ? derived : await derivePassword(loginId, confirmPassword),
+      })
       await refresh()
       router.replace('/dashboard')
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
-        setErrors(Object.fromEntries(err.errors.map((e) => [e.field, e.message])))
+        setErrors(err.fieldErrorMap())
       } else {
         setError(err instanceof ApiError ? err.message : 'Could not create your account')
       }
@@ -49,7 +60,9 @@ export default function SignUpPage() {
 
         <form onSubmit={submit} className="form-sheet max-w-none p-6">
           <h1 className="mb-1 text-md font-semibold text-ink">Create an account</h1>
-          <p className="mb-5 text-xs text-ink-muted">Creates an Accountant login — masters, transactions and reports.</p>
+          <p className="mb-5 text-xs text-ink-muted">
+            Creates a basic account. An administrator grants access to masters, transactions and reports.
+          </p>
 
           <FormField label="Name" error={errors.name} className="mb-3">
             <TextInput value={name} onChange={(e) => setName(e.target.value)} autoFocus required />

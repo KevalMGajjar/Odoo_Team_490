@@ -52,7 +52,7 @@ export function ContactForm({ contact }) {
       }
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
-        setErrors(Object.fromEntries(err.errors.map((e) => [e.field, e.message])))
+        setErrors(err.fieldErrorMap())
       } else {
         push(err.message || 'Could not save contact', { type: 'error' })
       }

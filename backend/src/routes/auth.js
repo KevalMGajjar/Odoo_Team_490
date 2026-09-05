@@ -129,8 +129,14 @@ router.post('/forgot', validate(forgotSchema), async (req, res, next) => {
 
 router.post('/reset', validate(resetSchema), async (req, res, next) => {
   try {
-    const { email, otp, password } = req.body
+    const { email, loginId, otp, password } = req.body
     const user = await prisma.user.findUnique({ where: { email } })
+
+    // The client salted the new password with this Login ID, so it must be the
+    // right one — otherwise the reset would "succeed" and then never log in.
+    if (user && user.loginId.toLowerCase() !== String(loginId).trim().toLowerCase()) {
+      throw invalidField('loginId', 'That Login ID does not match this account')
+    }
 
     if (!user?.resetOtp || !user.resetOtpExpires) {
       throw invalidField('otp', 'No reset is pending for this account')

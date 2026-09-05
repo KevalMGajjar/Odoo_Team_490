@@ -26,6 +26,23 @@ export class ApiError extends Error {
   fieldError(field) {
     return this.errors.find((e) => e.field === field)?.message
   }
+
+  /**
+   * All server errors as `{ field: message }`, joining every message for the
+   * same field.
+   *
+   * A weak password can break several rules at once, and the old
+   * `Object.fromEntries(...)` kept only the last one — so you fixed the
+   * missing special character, resubmitted, and only then learned it also
+   * needed an uppercase letter.
+   */
+  fieldErrorMap() {
+    const map = {}
+    for (const { field, message } of this.errors) {
+      map[field] = map[field] ? `${map[field]}. ${message}` : message
+    }
+    return map
+  }
 }
 
 async function request(path, { method = 'GET', body, headers, ...rest } = {}) {

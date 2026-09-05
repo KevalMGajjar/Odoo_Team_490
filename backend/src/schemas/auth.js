@@ -7,14 +7,22 @@ const loginId = z
   .trim()
   .regex(/^[A-Za-z0-9]{6,12}$/, 'Login ID must be 6-12 letters/numbers')
 
-/** Lowercase + uppercase + special character + at least 8 characters. */
+/**
+ * Clients send PBKDF2-SHA256(password, salt = loginId) as 64 hex characters,
+ * never the typed password — see frontend/lib/password.js. The server bcrypts
+ * this before storing it, so a plaintext password is never received, logged,
+ * or persisted.
+ *
+ * Consequence worth being explicit about: strength rules (length, upper,
+ * lower, special) can no longer be enforced here, because the server never
+ * sees the password to judge. They are enforced client-side before
+ * derivation. Requiring the derived shape at least guarantees a client that
+ * skipped derivation is rejected outright rather than silently storing a
+ * bcrypt of the raw password.
+ */
 const password = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(128, 'Password is too long')
-  .regex(/[a-z]/, 'Password must include a lowercase letter')
-  .regex(/[A-Z]/, 'Password must include an uppercase letter')
-  .regex(/[^A-Za-z0-9]/, 'Password must include a special character')
+  .regex(/^[a-f0-9]{64}$/, 'Password was not processed correctly by the client — please retry')
 
 export const signupSchema = z
   .object({
@@ -41,6 +49,9 @@ export const forgotSchema = z.object({ email })
 
 export const resetSchema = z.object({
   email,
+  // Needed because the new password is salted with it client-side; the route
+  // checks it really belongs to this email.
+  loginId,
   otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
   password,
 })

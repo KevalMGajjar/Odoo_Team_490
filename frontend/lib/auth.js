@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { api, ApiError } from './api'
+import { derivePassword } from './password'
 
 const AuthContext = createContext(null)
 
@@ -31,7 +32,9 @@ export function AuthProvider({ children }) {
   }, [refresh])
 
   const login = useCallback(async (loginId, password) => {
-    const { user } = await api.post('/auth/login', { loginId, password })
+    // The typed password never leaves the browser — only its PBKDF2 derivation.
+    const derived = await derivePassword(loginId, password)
+    const { user } = await api.post('/auth/login', { loginId, password: derived })
     setUser(user)
     return user
   }, [])

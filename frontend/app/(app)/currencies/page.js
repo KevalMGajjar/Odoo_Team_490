@@ -37,7 +37,7 @@ export default function CurrenciesPage() {
       reload()
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
-        setErrors(Object.fromEntries(err.errors.map((e) => [e.field, e.message])))
+        setErrors(err.fieldErrorMap())
       } else {
         push(err.message || 'Could not add currency', { type: 'error' })
       }

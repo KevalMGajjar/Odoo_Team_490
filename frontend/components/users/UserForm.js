@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { ConfirmDialog } from '@/components/ui/Modal'
 import { api, ApiError } from '@/lib/api'
+import { derivePassword, passwordStrengthError } from '@/lib/password'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/lib/auth'
 import { useGuardedAction } from '@/lib/useGuardedAction'
@@ -40,13 +41,21 @@ export function UserForm({ user: editUser }) {
         push('User updated', { type: 'success' })
         router.push('/users')
       } else {
-        await api.post('/users', { ...form, contactId: contact?.id || null })
+        const weak = passwordStrengthError(form.password)
+        if (weak) { setErrors({ password: weak }); return }
+        // Salted with the new user's own Login ID, matching what they'll
+        // send when they sign in.
+        await api.post('/users', {
+          ...form,
+          password: await derivePassword(form.loginId, form.password),
+          contactId: contact?.id || null,
+        })
         push('User created', { type: 'success' })
         router.replace('/users')
       }
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
-        setErrors(Object.fromEntries(err.errors.map((e) => [e.field, e.message])))
+        setErrors(err.fieldErrorMap())
       } else {
         push(err.message || 'Could not save user', { type: 'error' })
       }

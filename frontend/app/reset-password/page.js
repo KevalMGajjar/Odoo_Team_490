@@ -7,6 +7,7 @@ import { FormField, TextInput } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 import { api, ApiError } from '@/lib/api'
+import { derivePassword, passwordStrengthError } from '@/lib/password'
 
 export default function ResetPasswordPage() {
   return (
@@ -20,6 +21,7 @@ function ResetPasswordForm() {
   const router = useRouter()
   const params = useSearchParams()
   const [email, setEmail] = useState(params.get('email') ?? '')
+  const [loginId, setLoginId] = useState('')
   const [otp, setOtp] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -29,7 +31,13 @@ function ResetPasswordForm() {
     e.preventDefault()
     setError('')
     try {
-      await api.post('/auth/reset', { email, otp, password })
+      // Derived with the Login ID, the same salt login uses — otherwise the
+      // new password would hash differently and sign-in would fail.
+      const weak = passwordStrengthError(password)
+      if (weak) { setError(weak); return }
+
+      const derived = await derivePassword(loginId, password)
+      await api.post('/auth/reset', { email, loginId, otp, password: derived })
       setDone(true)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong')
@@ -62,6 +70,10 @@ function ResetPasswordForm() {
               <FormField label="Email" className="mb-3">
                 <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />
               </FormField>
+              <FormField label="Login ID" hint="Needed to secure your new password" className="mb-3">
+                <TextInput value={loginId} onChange={(e) => setLoginId(e.target.value)} required />
+              </FormField>
+
               <FormField label="Reset Code" hint="6 digits" className="mb-3">
                 <TextInput value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={6} required />
               </FormField>
