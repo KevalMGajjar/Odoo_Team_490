@@ -111,6 +111,17 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(
+            onPressed: () {
+              // A saved URL survives reinstalls of the app's data and overrides
+              // the platform default, so there has to be a way back to it.
+              ApiConfig.clearCustomBaseUrl();
+              Navigator.pop(ctx);
+              setState(() {});
+              context.read<ConnectivityProvider>().checkNow();
+            },
+            child: const Text('Use default'),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
@@ -118,9 +129,10 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () {
               ApiConfig.setCustomBaseUrl(urlController.text.trim());
               Navigator.pop(ctx);
+              setState(() {});
               context.read<ConnectivityProvider>().checkNow();
             },
-            child: const Text('Save Settings'),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -263,7 +275,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 8),
+
+                    // Which backend this build is actually talking to. Without
+                    // it, a saved URL from another network looks identical to a
+                    // backend that is down.
+                    Center(
+                      child: TextButton(
+                        onPressed: _showServerSettings,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          ApiConfig.baseUrl,
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
                     // Error Notification
                     if (auth.error != null) ...[

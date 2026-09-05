@@ -288,7 +288,14 @@ class ApiService {
         error.type == DioExceptionType.receiveTimeout ||
         error.type == DioExceptionType.sendTimeout ||
         error.type == DioExceptionType.connectionError) {
-      return Exception('Server unreachable. Please check your connection.');
+      // Name the address. "Please check your connection" is true of a phone in
+      // flight mode, a backend that is not running, and an app still pointed at
+      // a saved URL from another network — and it tells you which of those it
+      // is in none of the three cases. The URL usually does.
+      return Exception(
+        'Could not reach the server at ${ApiConfig.baseUrl} — '
+        'check the backend is running, and the server URL in settings.',
+      );
     }
 
     if (error.response != null) {

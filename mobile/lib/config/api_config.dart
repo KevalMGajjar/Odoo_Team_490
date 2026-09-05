@@ -33,6 +33,18 @@ class ApiConfig {
     } catch (_) {}
   }
 
+  /// Forget a saved URL and fall back to the platform default.
+  static void clearCustomBaseUrl() {
+    _customBaseUrl = null;
+    try {
+      if (Hive.isBoxOpen(_settingsBox)) Hive.box<String>(_settingsBox).delete(_baseUrlKey);
+    } catch (_) {}
+  }
+
+  /// True when the app is pointed somewhere other than the platform default —
+  /// worth surfacing, because a saved URL outlives the network it was for.
+  static bool get hasCustomBaseUrl => _customBaseUrl != null && _customBaseUrl!.isNotEmpty;
+
   /// Base URL of the Express API.
   /// Automatically resolves based on platform:
   /// - Android Emulator: 10.0.2.2:4000
