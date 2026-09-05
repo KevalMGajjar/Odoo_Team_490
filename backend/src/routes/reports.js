@@ -7,6 +7,7 @@ import {
   budgetReport, generalLedger, dashboardSummary,
 } from '../services/reports.js'
 import { listTransactions } from '../services/voucher.js'
+import { cacheResponse } from '../lib/cache.js'
 
 /**
  * Reporting API.
@@ -19,6 +20,7 @@ import { listTransactions } from '../services/voucher.js'
  */
 
 const router = express.Router()
+
 
 const parseDate = (value, label) => {
   if (!value) return null
@@ -38,6 +40,21 @@ const internalOnly = (req, res, next) =>
   req.user?.role === 'user'
     ? res.status(403).json({ message: 'Reports are not available to portal users' })
     : next()
+
+/**
+ * Reports aggregate the entire ledger, so the same Balance Sheet re-scans
+ * every journal item on each open. Cached for 30s and dropped immediately by
+ * any successful write (see lib/cache.js), so a freshly posted document is
+ * never followed by a stale figure.
+ *
+ * `verifyJWT` and `internalOnly` MUST run before the cache, not just on the
+ * routes below. Mounted first, the cache ran while `req.user` was still
+ * undefined, so every caller shared one `anon` key: an accountant's report was
+ * served straight back to a portal user who is supposed to get a 403. Every
+ * route here already requires both, so hoisting them changes no permissions —
+ * it only guarantees identity is known before anything is keyed or served.
+ */
+router.use(verifyJWT, internalOnly, cacheResponse({ ttlMs: 30_000, namespace: 'report' }))
 
 // ─────────────────────────── CSV ───────────────────────────
 const csvCell = (v) => {

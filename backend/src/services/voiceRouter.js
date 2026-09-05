@@ -1,4 +1,5 @@
 import { catalogForPrompt, intentIdsForRole, validateIntent } from './voiceIntents.js'
+import { breaker } from '../lib/circuitBreaker.js'
 
 /**
  * VOICE ASSISTANT — SPEECH → SCREEN ROUTER
@@ -59,7 +60,7 @@ export function isVoiceRoutingConfigured() {
   return process.env.AI_ENABLED === 'true' && Boolean(process.env.AI_BASE_URL)
 }
 
-async function callModel(transcript, role) {
+async function callModelDirect(transcript, role) {
   const base = (process.env.AI_BASE_URL ?? '').replace(/\/$/, '')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -102,9 +103,23 @@ async function callModel(transcript, role) {
   }
 }
 
+/**
+ * The AI endpoint is a third party that can go slow rather than down. Without
+ * a breaker every assistant request would sit through the full timeout while
+ * it degrades; with one, calls fail instantly once it's clearly unhealthy and
+ * a single probe checks for recovery.
+ */
+const modelBreaker = breaker('ai-model', callModelDirect, { timeout: TIMEOUT_MS + 1000 })
+
+const callModel = (transcript, role) => modelBreaker.fire(transcript, role)
+
 /** Turn a transport/API failure into something the user can actually act on. */
 function explainFailure(err) {
   if (err.name === 'AbortError') return 'That took too long to interpret. Please try again.'
+  // opossum rejects with this the moment the breaker is open.
+  if (err.code === 'EOPENBREAKER' || /Breaker is open/i.test(err.message ?? '')) {
+    return 'The assistant service is temporarily unavailable. Try again shortly.'
+  }
   switch (err.status) {
     case 429:
       return 'The assistant is rate-limited right now. Wait a few seconds and try again.'

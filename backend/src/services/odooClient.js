@@ -1,4 +1,5 @@
 import xmlrpc from 'xmlrpc'
+import { breaker } from '../lib/circuitBreaker.js'
 
 /**
  * Low-level Odoo XML-RPC client.
@@ -75,7 +76,7 @@ export async function odooAuthenticate({ force = false } = {}) {
  *                         calls this is `[domain]`, for create it's `[values]`.
  * @param {object} kwargs  e.g. { fields: [...], limit: 10 }
  */
-export async function executeKw(model, method, args = [], kwargs = {}) {
+async function executeKwDirect(model, method, args = [], kwargs = {}) {
   const uid = await odooAuthenticate()
   const { objectClient } = getClients()
   try {
@@ -89,6 +90,18 @@ export async function executeKw(model, method, args = [], kwargs = {}) {
     throw err
   }
 }
+
+/**
+ * Odoo is an external system on the other side of a network. When it hangs
+ * rather than refuses, every sync request would block for the full timeout and
+ * tie up the pool — so calls go through a breaker that fails fast once it is
+ * clearly unhealthy. Odoo is optional here, so an open breaker degrades sync
+ * rather than the app.
+ */
+const odooBreaker = breaker('odoo-rpc', executeKwDirect, { timeout: Number(process.env.ERP_TIMEOUT_MS || 15000) })
+
+export const executeKw = (model, method, args = [], kwargs = {}) =>
+  odooBreaker.fire(model, method, args, kwargs)
 
 /** Cheap reachability check for /health — a real round trip, not just a socket probe. */
 export async function odooPing() {

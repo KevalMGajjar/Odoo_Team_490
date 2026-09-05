@@ -22,6 +22,9 @@ import odooRoutes from './routes/odoo.js'
 import userRoutes from './routes/users.js'
 import budgetRoutes from './routes/budgets.js'
 import voiceRoutes from './routes/voice.js'
+import { apiLimiter, authLimiter, writeLimiter } from './middleware/rateLimit.js'
+import { invalidateReportsOnWrite, cacheStats } from './lib/cache.js'
+import { breakerStats } from './lib/circuitBreaker.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -69,6 +72,14 @@ app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'))
 
+// Rate limits sit after the body parser (the auth limiter keys off loginId)
+// and before the routes.
+app.use(apiLimiter)
+app.use(writeLimiter)
+// Any successful write drops cached reports, so a posted document is never
+// followed by a stale balance sheet.
+app.use(invalidateReportsOnWrite)
+
 /**
  * Money crosses the wire as a STRING.
  *
@@ -109,6 +120,11 @@ app.get('/health', async (req, res) => {
     ? { status: 'configured', model: process.env.AI_MODEL, offline: /localhost|127\.0\.0\.1/.test(process.env.AI_BASE_URL ?? '') }
     : { status: 'disabled', detail: 'Optional — document entry works without it' }
 
+  // Surfaced so an open breaker or a cold cache is visible rather than
+  // something you have to infer from behaviour.
+  checks.circuits = breakerStats()
+  checks.cache = cacheStats()
+
   const healthy = checks.database.status === 'up'
   res.status(healthy ? 200 : 503).json({
     status: healthy ? 'ok' : 'degraded',
@@ -148,7 +164,7 @@ app.get('/', (req, res) => {
 })
 
 // ─────────────────────────── routes ───────────────────────────
-app.use('/auth', authRoutes)
+app.use('/auth', authLimiter, authRoutes)
 app.use('/reports', reportRoutes)
 app.use('/', transactionRoutes)
 app.use('/audit', auditRoutes)
