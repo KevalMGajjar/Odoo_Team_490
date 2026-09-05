@@ -37,7 +37,10 @@ export default function NewBillPage() {
         vendorId: vendor.id,
         billDate,
         dueDate: dueDate || undefined,
-        lines: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate) })),
+        lines: lines.map((l) => ({
+          productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
+          accountId: l.accountId || undefined, analyticAccountId: l.analyticAccountId || undefined,
+        })),
       })
       push(`${bill.number} created as draft`, { type: 'success' })
       router.replace(`/bills/${bill.id}`)

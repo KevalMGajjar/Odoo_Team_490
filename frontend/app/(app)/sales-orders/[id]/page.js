@@ -99,13 +99,14 @@ export default function SalesOrderDetailPage() {
 
           <FormSection>
             <FormGrid>
+              <FormField label="SO No."><TextInput value={so.number} disabled /></FormField>
               <FormField label="Customer"><TextInput value={so.customer?.name ?? ''} disabled /></FormField>
-              <FormField label="Order Date"><TextInput value={formatDate(so.orderDate)} disabled /></FormField>
+              <FormField label="SO Date"><TextInput value={formatDate(so.orderDate)} disabled /></FormField>
             </FormGrid>
           </FormSection>
 
           <FormSection title="Order Lines">
-            <LineItemGrid lines={lines} onChange={() => {}} disabled />
+            <LineItemGrid lines={lines} onChange={() => {}} disabled showAccountColumn={false} />
           </FormSection>
         </FormSheet>
       </div>

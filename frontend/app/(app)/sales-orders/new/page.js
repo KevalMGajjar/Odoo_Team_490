@@ -35,7 +35,10 @@ export default function NewSalesOrderPage() {
       const so = await api.post('/sales-orders', {
         customerId: customer.id,
         orderDate,
-        lines: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate) })),
+        lines: lines.map((l) => ({
+          productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
+          analyticAccountId: l.analyticAccountId || undefined,
+        })),
       })
       push(`${so.number} created`, { type: 'success' })
       router.replace(`/sales-orders/${so.id}`)
@@ -58,14 +61,14 @@ export default function NewSalesOrderPage() {
               <FormField label="Customer" required>
                 <SearchSelect path="/contacts" resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
               </FormField>
-              <FormField label="Order Date" required>
+              <FormField label="SO Date" required>
                 <TextInput type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
               </FormField>
             </FormGrid>
           </FormSection>
 
           <FormSection title="Order Lines">
-            <LineItemGrid lines={lines} onChange={setLines} />
+            <LineItemGrid lines={lines} onChange={setLines} showAccountColumn={false} />
           </FormSection>
 
           {error && <p className="mt-3 rounded-sm bg-state-overdue/10 px-2 py-1.5 text-xs text-state-overdue">{error}</p>}

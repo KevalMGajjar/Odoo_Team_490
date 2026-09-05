@@ -37,7 +37,10 @@ export default function NewInvoicePage() {
         customerId: customer.id,
         invoiceDate,
         dueDate: dueDate || undefined,
-        lines: lines.map((l) => ({ productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate) })),
+        lines: lines.map((l) => ({
+          productId: l.productId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice), taxRate: Number(l.taxRate),
+          accountId: l.accountId || undefined, analyticAccountId: l.analyticAccountId || undefined,
+        })),
       })
       push(`${inv.number} created as draft`, { type: 'success' })
       router.replace(`/invoices/${inv.id}`)

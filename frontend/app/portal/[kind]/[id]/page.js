@@ -72,7 +72,7 @@ export default function PortalDocumentDetailPage() {
           </FormSection>
 
           <FormSection title="Lines">
-            <LineItemGrid lines={lines} onChange={() => {}} disabled />
+            <LineItemGrid lines={lines} onChange={() => {}} disabled showAccountColumn={false} />
           </FormSection>
         </FormSheet>
       </div>

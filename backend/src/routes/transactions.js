@@ -153,7 +153,7 @@ router.get('/purchase-orders/:id', verifyJWT, internalOnly, async (req, res, nex
   try {
     const row = await prisma.purchaseOrder.findUnique({
       where: { id: req.params.id },
-      include: { vendor: true, currency: true, lines: { include: { product: true } }, bills: true },
+      include: { vendor: true, currency: true, lines: { include: { product: true, analyticAccount: true } }, bills: true },
     })
     if (!row) throw notFound('Purchase order')
     res.json(row)
@@ -287,7 +287,7 @@ router.get('/bills/:id', verifyJWT, internalOnly, async (req, res, next) => {
     const row = await prisma.vendorBill.findUnique({
       where: { id: req.params.id },
       include: {
-        vendor: true, currency: true, lines: { include: { product: true } },
+        vendor: true, currency: true, lines: { include: { product: true, account: true, analyticAccount: true } },
         journalEntry: { include: { items: { include: { account: true } } } },
         allocations: { include: { payment: true } },
         stockMoves: { include: { product: { select: { name: true } } } },
@@ -364,7 +364,7 @@ router.get('/sales-orders/:id', verifyJWT, internalOnly, async (req, res, next) 
   try {
     const row = await prisma.salesOrder.findUnique({
       where: { id: req.params.id },
-      include: { customer: true, currency: true, lines: { include: { product: true } }, invoices: true },
+      include: { customer: true, currency: true, lines: { include: { product: true, analyticAccount: true } }, invoices: true },
     })
     if (!row) throw notFound('Sales order')
     res.json(row)
@@ -479,7 +479,7 @@ router.get('/invoices/:id', verifyJWT, async (req, res, next) => {
     const row = await prisma.customerInvoice.findUnique({
       where: { id: req.params.id },
       include: {
-        customer: true, currency: true, lines: { include: { product: true } },
+        customer: true, currency: true, lines: { include: { product: true, account: true, analyticAccount: true } },
         journalEntry: { include: { items: { include: { account: true } } } },
         cogsEntry: { include: { items: { include: { account: true } } } },
         allocations: { include: { payment: true } },

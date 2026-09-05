@@ -10,8 +10,13 @@ import { formatMoney } from '@/lib/format'
  * computed client-side for display only; the server recomputes it from
  * quantity x unit price and ignores anything sent — a tampered payload
  * can't move money.
+ *
+ * `showAccountColumn` — a PO/SO is a commitment, not an accounting document
+ * (it never touches an account, per transactions.js), so Purchase/Sales
+ * Order screens pass `false`; Bill/Invoice screens leave it `true` since
+ * their lines already carry a real accountId, defaulted from the product.
  */
-export function LineItemGrid({ lines, onChange, disabled }) {
+export function LineItemGrid({ lines, onChange, disabled, showAccountColumn = true }) {
   const update = (idx, patch) => onChange(lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   const addLine = () => onChange([...lines, blankProductLine()])
   const removeLine = (idx) => onChange(lines.filter((_, i) => i !== idx))
@@ -42,10 +47,13 @@ export function LineItemGrid({ lines, onChange, disabled }) {
   return (
     <div className="rounded border border-line">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <table className="w-full min-w-[820px] border-collapse text-sm">
           <thead className="bg-surface-subtle">
             <tr>
+              <th className="w-10 px-2 py-2 text-left text-xs font-semibold uppercase text-ink-muted">Sr</th>
               <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-ink-muted">Product</th>
+              {showAccountColumn && <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-ink-muted">Chart of Account</th>}
+              <th className="px-2 py-2 text-left text-xs font-semibold uppercase text-ink-muted">Budget Analytics</th>
               <th className="w-24 px-2 py-2 text-right text-xs font-semibold uppercase text-ink-muted">Qty</th>
               <th className="w-32 px-2 py-2 text-right text-xs font-semibold uppercase text-ink-muted">Unit Price</th>
               <th className="w-20 px-2 py-2 text-right text-xs font-semibold uppercase text-ink-muted">Tax %</th>
@@ -58,6 +66,7 @@ export function LineItemGrid({ lines, onChange, disabled }) {
               const subtotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0)
               return (
                 <tr key={line._key ?? line.id ?? idx} className="border-b border-line last:border-b-0">
+                  <td className="px-2 py-1.5 text-ink-faint tabular">{idx + 1}</td>
                   <td className="px-2 py-1.5">
                     <SearchSelect
                       path="/products"
@@ -65,6 +74,29 @@ export function LineItemGrid({ lines, onChange, disabled }) {
                       resolvedOption={line.product}
                       onChange={(p) => pickProduct(idx, p)}
                       placeholder="Select product"
+                      disabled={disabled}
+                    />
+                  </td>
+                  {showAccountColumn && (
+                    <td className="px-2 py-1.5">
+                      <SearchSelect
+                        path="/accounts"
+                        value={line.accountId}
+                        resolvedOption={line.account}
+                        onChange={(opt) => update(idx, { accountId: opt?.id ?? '', account: opt })}
+                        getLabel={(o) => `${o.code} ${o.name}`}
+                        placeholder="Default account"
+                        disabled={disabled}
+                      />
+                    </td>
+                  )}
+                  <td className="px-2 py-1.5">
+                    <SearchSelect
+                      path="/analytic-accounts"
+                      value={line.analyticAccountId}
+                      resolvedOption={line.analyticAccount}
+                      onChange={(opt) => update(idx, { analyticAccountId: opt?.id ?? '', analyticAccount: opt })}
+                      placeholder="Optional"
                       disabled={disabled}
                     />
                   </td>
@@ -139,5 +171,11 @@ export function LineItemGrid({ lines, onChange, disabled }) {
 }
 
 export function blankProductLine() {
-  return { _key: Math.random().toString(36).slice(2), productId: '', product: null, quantity: '1', unitPrice: '0', taxRate: '0' }
+  return {
+    _key: Math.random().toString(36).slice(2),
+    productId: '', product: null,
+    accountId: '', account: null,
+    analyticAccountId: '', analyticAccount: null,
+    quantity: '1', unitPrice: '0', taxRate: '0',
+  }
 }

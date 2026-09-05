@@ -102,13 +102,14 @@ export default function PurchaseOrderDetailPage() {
 
           <FormSection>
             <FormGrid>
+              <FormField label="PO No."><TextInput value={po.number} disabled /></FormField>
               <FormField label="Vendor"><TextInput value={po.vendor?.name ?? ''} disabled /></FormField>
-              <FormField label="Order Date"><TextInput value={formatDate(po.orderDate)} disabled /></FormField>
+              <FormField label="PO Date"><TextInput value={formatDate(po.orderDate)} disabled /></FormField>
             </FormGrid>
           </FormSection>
 
           <FormSection title="Order Lines">
-            <LineItemGrid lines={lines} onChange={() => {}} disabled />
+            <LineItemGrid lines={lines} onChange={() => {}} disabled showAccountColumn={false} />
           </FormSection>
         </FormSheet>
       </div>
