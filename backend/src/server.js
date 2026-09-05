@@ -14,6 +14,7 @@ import swaggerUi from 'swagger-ui-express'
 import authRoutes from './routes/auth.js'
 import masterRoutes from './routes/masters.js'
 import reportRoutes from './routes/reports.js'
+import transactionRoutes from './routes/transactions.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -136,6 +137,7 @@ app.get('/', (req, res) => {
 // ─────────────────────────── routes ───────────────────────────
 app.use('/auth', authRoutes)
 app.use('/reports', reportRoutes)
+app.use('/', transactionRoutes)
 app.use('/', masterRoutes)
 
 app.use(notFoundHandler)
