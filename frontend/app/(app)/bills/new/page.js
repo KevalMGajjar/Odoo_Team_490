@@ -63,7 +63,7 @@ export default function NewBillPage() {
           <FormSection>
             <FormGrid>
               <FormField label="Vendor" required>
-                <SearchSelect path="/contacts" resolvedOption={vendor} onChange={setVendor} placeholder="Select vendor" />
+                <SearchSelect path="/contacts" extraParams={{ type: 'vendor' }} resolvedOption={vendor} onChange={setVendor} placeholder="Select vendor" />
               </FormField>
               <FormField label="Bill Date" required>
                 <TextInput type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} required />

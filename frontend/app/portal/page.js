@@ -9,7 +9,12 @@ import { formatMoney, formatDate, relativeDue } from '@/lib/format'
 
 export default function PortalDocumentsPage() {
   const router = useRouter()
-  const { data, loading } = useApiGet('/portal/documents')
+  const { data, loading, error } = useApiGet('/portal/documents')
+
+  // A self-signed-up account starts with no contact linked, so this endpoint
+  // refuses it. Falling through to the normal empty state would tell them they
+  // have no documents, which isn't true — their account just isn't linked yet.
+  const awaitingLink = error?.status === 403
 
   const columns = [
     { key: 'number', header: 'Document', render: (r) => <span className="font-medium tabular">{r.number}</span> },
@@ -30,6 +35,17 @@ export default function PortalDocumentsPage() {
   return (
     <div className="flex h-full flex-col">
       <ControlPanel title="My Documents" breadcrumb="Portal" />
+      {awaitingLink ? (
+        <div className="p-6">
+          <div className="mx-auto max-w-md rounded border border-line bg-surface-sheet p-6 text-center">
+            <p className="text-md font-semibold text-ink">Your account isn&rsquo;t linked yet</p>
+            <p className="mt-2 text-sm text-ink-muted">
+              New accounts start with no access to any records. An administrator needs to link your
+              login to a customer or vendor before your invoices appear here.
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns}
@@ -39,6 +55,7 @@ export default function PortalDocumentsPage() {
           emptyTitle="No invoices or bills on record yet."
         />
       </div>
+      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Package, Wrench, List, LayoutGrid } from 'lucide-react'
 import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
+import { ArchiveFilter } from '@/components/masters/ArchiveFilter'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -28,8 +29,9 @@ function Thumb({ product, size = 20 }) {
 export default function ProductsListPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/products')
   const [view, setView] = useState('list')
+  const [status, setStatus] = useState('active')
+  const { rows, loading, search, setSearch, page, pageSize, total, setPage, reload } = useApiList('/products', { extraParams: { status } })
 
   const columns = [
     {
@@ -62,7 +64,9 @@ export default function ProductsListPage() {
           )
         }
         viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
-      />
+      >
+        <ArchiveFilter value={status} onChange={setStatus} apiPath="/products" onRestored={reload} />
+      </ControlPanel>
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns}

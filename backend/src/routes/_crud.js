@@ -54,7 +54,11 @@ export function crudRouter({
       const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take
 
       const where = { ...listWhere(req) }
+      // Archived records are hidden unless explicitly asked for. Previously no
+      // filter meant "show everything", so archiving a contact left it sitting
+      // in the list looking active. `?status=all` still returns both.
       if (status === 'active' || status === 'archived') where.status = status
+      else if (status !== 'all') where.status = 'active'
       if (q?.trim()) {
         where.OR = searchFields.map((field) => ({
           [field]: { contains: q.trim(), mode: 'insensitive' },
@@ -179,6 +183,24 @@ export function crudRouter({
       const row = await db().update({ where: { id: req.params.id }, data: { status: 'active' } })
       broadcast(`${event}:updated`, { id: row.id })
       res.json(row)
+    } catch (err) { next(err) }
+  })
+
+  /**
+   * Restore every archived record of this type in one call.
+   *
+   * Unarchiving is always safe — archiving is what's guarded, since it's the
+   * direction that can strand references. Reported as a count so the UI can
+   * say what actually happened rather than assuming.
+   */
+  router.post('/unarchive-all', verifyJWT, requireRole(writeRoles), async (req, res, next) => {
+    try {
+      const { count } = await db().updateMany({
+        where: { status: 'archived' },
+        data: { status: 'active' },
+      })
+      if (count > 0) broadcast(`${event}:updated`, { bulk: true, count })
+      res.json({ restored: count })
     } catch (err) { next(err) }
   })
 

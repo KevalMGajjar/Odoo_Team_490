@@ -25,6 +25,19 @@ router.use('/contacts', crudRouter({
   updateSchema: S.contactUpdate,
   searchFields: ['name', 'email', 'mobile', 'city'],
   orderBy: { name: 'asc' },
+  /**
+   * `?type=vendor` / `?type=customer` narrows the picker to who may actually
+   * be used. A contact typed `both` qualifies as either, which mirrors the
+   * server-side check on the document routes — a Purchase Order refuses a
+   * vendorId whose contact isn't a vendor, so offering one in the dropdown
+   * only leads to a rejected save.
+   */
+  listWhere: (req) => {
+    const type = req.query.type
+    if (type === 'vendor') return { type: { in: ['vendor', 'both'] } }
+    if (type === 'customer') return { type: { in: ['customer', 'both'] } }
+    return {}
+  },
   auditActions: {
     created: AUDIT_ACTIONS.contact_created,
     updated: AUDIT_ACTIONS.contact_updated,

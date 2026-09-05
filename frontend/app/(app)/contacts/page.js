@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Building2, User, List, LayoutGrid } from 'lucide-react'
 import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
+import { ArchiveFilter } from '@/components/masters/ArchiveFilter'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -28,8 +29,9 @@ function Avatar({ contact, size = 20 }) {
 export default function ContactsListPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/contacts')
   const [view, setView] = useState('list')
+  const [status, setStatus] = useState('active')
+  const { rows, loading, search, setSearch, page, pageSize, total, setPage, reload } = useApiList('/contacts', { extraParams: { status } })
 
   const columns = [
     {
@@ -62,7 +64,9 @@ export default function ContactsListPage() {
           )
         }
         viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
-      />
+      >
+        <ArchiveFilter value={status} onChange={setStatus} apiPath="/contacts" onRestored={reload} />
+      </ControlPanel>
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns}

@@ -36,7 +36,7 @@ export function AccountForm({ account }) {
       if (isEdit) {
         await api.put(`/accounts/${account.id}`, form)
         push('Account updated', { type: 'success' })
-        router.refresh()
+        router.push('/accounts')
       } else {
         const created = await api.post('/accounts', form)
         push('Account created', { type: 'success' })
@@ -55,7 +55,7 @@ export function AccountForm({ account }) {
     try {
       await api.post(`/accounts/${account.id}/archive`)
       push('Account archived', { type: 'success' })
-      router.refresh()
+      router.push('/accounts')
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {

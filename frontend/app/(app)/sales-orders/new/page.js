@@ -76,7 +76,7 @@ export default function NewSalesOrderPage() {
                 <TextInput type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
               </FormField>
               <FormField label="Customer" required className="sm:col-span-2">
-                <SearchSelect path="/contacts" resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
+                <SearchSelect path="/contacts" extraParams={{ type: 'customer' }} resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
               </FormField>
             </FormGrid>
           </FormSection>

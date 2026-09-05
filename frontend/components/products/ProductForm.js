@@ -50,7 +50,8 @@ export function ProductForm({ product }) {
       if (isEdit) {
         await api.put(`/products/${product.id}`, payload)
         push('Product updated', { type: 'success' })
-        router.refresh()
+        router.push('/products')
+        return
       } else {
         const created = await api.post('/products', payload)
         push('Product created', { type: 'success' })
@@ -69,7 +70,7 @@ export function ProductForm({ product }) {
     try {
       await api.post(`/products/${product.id}/archive`)
       push('Product archived', { type: 'success' })
-      router.refresh()
+      router.push('/products')
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {

@@ -38,7 +38,7 @@ export function UserForm({ user: editUser }) {
       if (isEdit) {
         await api.put(`/users/${editUser.id}`, { name: form.name, role: form.role, contactId: contact?.id || null })
         push('User updated', { type: 'success' })
-        router.refresh()
+        router.push('/users')
       } else {
         await api.post('/users', { ...form, contactId: contact?.id || null })
         push('User created', { type: 'success' })
@@ -57,7 +57,7 @@ export function UserForm({ user: editUser }) {
     try {
       await api.post(`/users/${editUser.id}/archive`)
       push('User archived', { type: 'success' })
-      router.refresh()
+      router.push('/users')
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {

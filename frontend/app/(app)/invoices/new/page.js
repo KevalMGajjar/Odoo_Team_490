@@ -63,7 +63,7 @@ export default function NewInvoicePage() {
           <FormSection>
             <FormGrid>
               <FormField label="Customer" required>
-                <SearchSelect path="/contacts" resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
+                <SearchSelect path="/contacts" extraParams={{ type: 'customer' }} resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
               </FormField>
               <FormField label="Invoice Date" required>
                 <TextInput type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} required />

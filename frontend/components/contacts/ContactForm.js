@@ -40,13 +40,16 @@ export function ContactForm({ contact }) {
       if (isEdit) {
         await api.put(`/contacts/${contact.id}`, form)
         push('Contact updated', { type: 'success' })
+        // Saving an edit returns to the list — staying on a read-back form
+        // left people wondering whether the change had actually taken.
+        router.push('/contacts')
+        return
       } else {
         const created = await api.post('/contacts', form)
         push('Contact created', { type: 'success' })
         router.replace(`/contacts/${created.id}`)
         return
       }
-      router.refresh()
     } catch (err) {
       if (err instanceof ApiError && err.errors?.length) {
         setErrors(Object.fromEntries(err.errors.map((e) => [e.field, e.message])))
@@ -60,7 +63,7 @@ export function ContactForm({ contact }) {
     try {
       await api.post(`/contacts/${contact.id}/archive`)
       push('Contact archived', { type: 'success' })
-      router.refresh()
+      router.push('/contacts')
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {

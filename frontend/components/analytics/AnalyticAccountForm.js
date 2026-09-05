@@ -35,7 +35,8 @@ export function AnalyticAccountForm({ account }) {
       if (isEdit) {
         await api.put(`/analytic-accounts/${account.id}`, form)
         push('Analytical account updated', { type: 'success' })
-        router.refresh()
+        router.push('/analytic-accounts')
+        return
       } else {
         const created = await api.post('/analytic-accounts', form)
         push('Analytical account created', { type: 'success' })
@@ -54,7 +55,7 @@ export function AnalyticAccountForm({ account }) {
     try {
       await api.post(`/analytic-accounts/${account.id}/archive`)
       push('Analytical account archived', { type: 'success' })
-      router.refresh()
+      router.push('/analytic-accounts')
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not archive', { type: 'error' })
     } finally {

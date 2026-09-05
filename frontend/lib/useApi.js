@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
+import { useDebouncedValue } from './useDebouncedValue'
 
 /** Simple GET-and-hold hook for a single resource (dashboard, a report, one record). */
 export function useApiGet(path, params, { skip = false } = {}) {
@@ -39,8 +40,12 @@ export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
   const [page, setPage] = useState(1)
   const extraKey = JSON.stringify(extraParams)
 
+  // The input stays instant; only the request waits. Without this every
+  // keystroke fired its own request.
+  const debouncedSearch = useDebouncedValue(search, 300)
+
   const { data, loading, error, reload } = useApiGet(path, {
-    q: search || undefined,
+    q: debouncedSearch || undefined,
     page,
     pageSize,
     ...extraParams,
@@ -50,7 +55,7 @@ export function useApiList(path, { pageSize = 25, extraParams = {} } = {}) {
   useEffect(() => {
     setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, extraKey])
+  }, [debouncedSearch, extraKey])
 
   return {
     rows: data?.rows ?? [],

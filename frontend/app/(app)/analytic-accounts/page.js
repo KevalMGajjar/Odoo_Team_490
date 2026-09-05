@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, List, LayoutGrid, Wallet, TrendingUp } from 'lucide-react'
 import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
+import { ArchiveFilter } from '@/components/masters/ArchiveFilter'
 import { DataTable } from '@/components/ui/DataTable'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -19,8 +20,9 @@ const VIEW_OPTIONS = [
 export default function AnalyticAccountsListPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/analytic-accounts')
   const [view, setView] = useState('list')
+  const [status, setStatus] = useState('active')
+  const { rows, loading, search, setSearch, page, pageSize, total, setPage, reload } = useApiList('/analytic-accounts', { extraParams: { status } })
 
   const columns = [
     { key: 'name', header: 'Analytical Account' },
@@ -39,7 +41,9 @@ export default function AnalyticAccountsListPage() {
           )
         }
         viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
-      />
+      >
+        <ArchiveFilter value={status} onChange={setStatus} apiPath="/analytic-accounts" onRestored={reload} />
+      </ControlPanel>
       <div className="flex-1 overflow-hidden">
         <DataTable
           columns={columns}
