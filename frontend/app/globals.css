@@ -1,0 +1,228 @@
+/* Self-hosted Inter — no runtime Google Fonts request (offline requirement). */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────── design tokens ─────────────────────────── */
+/* UI.md §2 — Odoo's actual palette. Full light set on bare :root; dark
+   overrides only what changes, in both the system-preference and explicit
+   [data-theme] forms so the toggle wins either direction. */
+:root {
+  --o-brand: #714b67;
+  --o-brand-hover: #5c3d54;
+  --o-brand-light: #f0eaee;
+  --o-secondary: #017e84;
+  --o-secondary-hover: #016468;
+
+  --o-bg: #f9f9f9;
+  --o-sheet: #ffffff;
+  --o-sidebar: #ffffff;
+  --o-header: #ffffff;
+  --o-subtle: #f5f5f5;
+  --o-hover: #f0f0f0;
+
+  --o-text: #2c2c34;
+  --o-text-muted: #6c757d;
+  --o-text-faint: #9aa0a6;
+  --o-text-invert: #ffffff;
+
+  --o-border: #dee2e6;
+  --o-border-strong: #c6cbd1;
+
+  --o-draft: #8f8f8f;
+  --o-posted: #714b67;
+  --o-paid: #28a745;
+  --o-partial: #f0ad4e;
+  --o-overdue: #d9534f;
+  --o-info: #17a2b8;
+
+  --o-debit: #1f6feb;
+  --o-credit: #c2410c;
+
+  --o-radius: 4px;
+  --o-radius-sm: 3px;
+  --o-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --o-shadow-pop: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --o-bg: #1a1a1a;
+    --o-sheet: #2b2b2b;
+    --o-sidebar: #202020;
+    --o-header: #252525;
+    --o-subtle: #303030;
+    --o-hover: #353535;
+    --o-text: #e4e4e4;
+    --o-text-muted: #a0a0a0;
+    --o-text-faint: #787878;
+    --o-border: #3a3a3a;
+    --o-border-strong: #4a4a4a;
+    --o-brand: #a87e9c;
+    --o-brand-hover: #bd93b0;
+    --o-brand-light: #33262f;
+    --o-secondary: #2fa8ae;
+    --o-secondary-hover: #4fc0c6;
+  }
+}
+
+:root[data-theme='dark'] {
+  --o-bg: #1a1a1a;
+  --o-sheet: #2b2b2b;
+  --o-sidebar: #202020;
+  --o-header: #252525;
+  --o-subtle: #303030;
+  --o-hover: #353535;
+  --o-text: #e4e4e4;
+  --o-text-muted: #a0a0a0;
+  --o-text-faint: #787878;
+  --o-border: #3a3a3a;
+  --o-border-strong: #4a4a4a;
+  --o-brand: #a87e9c;
+  --o-brand-hover: #bd93b0;
+  --o-brand-light: #33262f;
+  --o-secondary: #2fa8ae;
+  --o-secondary-hover: #4fc0c6;
+}
+
+/* ─────────────────────────── base ─────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--o-bg);
+  color: var(--o-text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every money column is tabular — non-negotiable for an accounting app. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--o-border-strong);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--o-text-faint);
+}
+
+/* focus ring — teal, consistent everywhere, never the browser default blue */
+:focus-visible {
+  outline: 2px solid var(--o-secondary);
+  outline-offset: 1px;
+}
+
+/* ─────────────────────────── component layer ─────────────────────────── */
+@layer components {
+  /* field label — small uppercase above the input, Odoo-style (UI.md §1) */
+  .field-label {
+    @apply block text-xs font-medium uppercase tracking-wide text-ink-muted mb-1;
+    letter-spacing: 0.04em;
+  }
+
+  .field-error {
+    @apply mt-1 text-xs text-state-overdue;
+  }
+
+  /* base input chrome shared by text/select/date — 3px radius (UI.md tell #3) */
+  .field-input {
+    @apply w-full rounded-sm border border-line bg-surface-sheet px-3 py-1.5 text-sm text-ink
+           transition-colors duration-150 placeholder:text-ink-faint;
+  }
+  .field-input:hover {
+    @apply border-line-strong;
+  }
+  .field-input:focus {
+    @apply border-secondary outline-none ring-1 ring-secondary;
+  }
+  .field-input[aria-invalid='true'] {
+    @apply border-state-overdue;
+  }
+  .field-input:disabled {
+    @apply cursor-not-allowed bg-surface-subtle text-ink-faint;
+  }
+
+  /* buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium
+           transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-ink-invert hover:bg-brand-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-surface-sheet text-ink hover:bg-surface-hover;
+  }
+  .btn-ghost {
+    @apply btn text-ink-muted hover:bg-surface-hover hover:text-ink;
+  }
+  .btn-danger {
+    @apply btn bg-state-overdue text-ink-invert hover:opacity-90;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+
+  /* status badge — 11px, 2px radius, tinted 12% background + solid text */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-[2px] px-1.5 py-0.5 text-xs font-medium;
+  }
+
+  /* form sheet — the document canvas */
+  .form-sheet {
+    @apply mx-auto w-full max-w-[1100px] rounded border border-line bg-surface-sheet p-6 shadow;
+  }
+
+  /* smart button */
+  .smart-btn {
+    @apply flex flex-col items-center justify-center rounded border border-line px-3 py-1.5
+           text-center transition-colors duration-150 hover:border-secondary hover:bg-surface-hover;
+  }
+  .smart-btn .smart-btn-value {
+    @apply text-sm font-semibold tabular text-ink;
+  }
+  .smart-btn .smart-btn-label {
+    @apply text-xs text-ink-muted;
+  }
+
+  /* sidebar guide rail for nested items */
+  .nav-rail {
+    position: relative;
+  }
+  .nav-rail::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--o-border);
+  }
+}
+
+/* prevent the page body itself from ever scrolling horizontally (UI.md §7) */
+body {
+  overflow-x: hidden;
+}
