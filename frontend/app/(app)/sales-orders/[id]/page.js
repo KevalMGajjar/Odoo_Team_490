@@ -16,6 +16,7 @@ import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/format'
 import { useGuardedAction } from '@/lib/useGuardedAction'
+import { showBudgetWarnings } from '@/lib/budgetWarnings'
 
 const STAGES = [{ value: 'draft', label: 'Draft' }, { value: 'confirmed', label: 'Confirmed' }]
 
@@ -28,8 +29,9 @@ export default function SalesOrderDetailPage() {
 
   const [confirm, confirming] = useGuardedAction(async () => {
     try {
-      await api.post(`/sales-orders/${id}/confirm`)
+      const res = await api.post(`/sales-orders/${id}/confirm`)
       push('Sales order confirmed', { type: 'success' })
+      showBudgetWarnings(push, res.warnings)
       reload()
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not confirm', { type: 'error' })

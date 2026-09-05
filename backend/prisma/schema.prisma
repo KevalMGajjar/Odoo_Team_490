@@ -453,7 +453,7 @@ model AnalyticAccount {
   type   AnalyticType
   status Status       @default(active)
 
-  budgets      Budget[]
+  budgetLines  BudgetLine[]
   journalItems JournalItem[]
   poLines      PurchaseOrderLine[]
   soLines      SalesOrderLine[]
@@ -463,20 +463,52 @@ model AnalyticAccount {
   @@map("analytic_accounts")
 }
 
-model Budget {
-  id                String   @id @default(uuid())
-  name              String
-  analyticAccountId String   @map("analytic_account_id")
-  startDate         DateTime @map("start_date") @db.Date
-  endDate           DateTime @map("end_date") @db.Date
-  plannedAmount     Decimal  @map("planned_amount") @db.Decimal(14, 2)
-  responsibleId     String?  @map("responsible_id")
-  status            Status   @default(active)
+/// Draft -> Confirmed -> Cancelled, or Confirmed -> Revised (superseded by a
+/// linked follow-up budget, itself born Draft). A Revised budget is frozen —
+/// its numbers stay in reports as history, but it's no longer "the" budget
+/// for its analytic accounts; only Confirmed budgets count toward the
+/// over-budget check and the live Budget Report.
+enum BudgetState {
+  draft
+  confirmed
+  revised
+  cancelled
+}
 
-  analyticAccount AnalyticAccount @relation(fields: [analyticAccountId], references: [id])
-  responsible     User?           @relation("BudgetOwner", fields: [responsibleId], references: [id])
+model Budget {
+  id            String      @id @default(uuid())
+  name          String
+  startDate     DateTime    @map("start_date") @db.Date
+  endDate       DateTime    @map("end_date") @db.Date
+  responsibleId String?     @map("responsible_id")
+  state         BudgetState @default(draft)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  /// Set on the NEW budget created by "Revise" — points back at the budget it
+  /// supersedes. The old budget reaches the new one the other way via
+  /// `revisedBy` (the reverse of this same relation), so the link works from
+  /// either end without a second column.
+  revisesId String? @unique @map("revises_id")
+  revises   Budget? @relation("BudgetRevision", fields: [revisesId], references: [id])
+  revisedBy Budget? @relation("BudgetRevision")
+
+  responsible User?        @relation("BudgetOwner", fields: [responsibleId], references: [id])
+  lines       BudgetLine[]
 
   @@map("budgets")
+}
+
+model BudgetLine {
+  id                String  @id @default(uuid())
+  budgetId          String  @map("budget_id")
+  analyticAccountId String  @map("analytic_account_id")
+  committedAmount   Decimal @map("committed_amount") @db.Decimal(14, 2)
+
+  budget          Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  analyticAccount AnalyticAccount @relation(fields: [analyticAccountId], references: [id])
+
+  @@index([analyticAccountId])
+  @@map("budget_lines")
 }
 
 // ─────────────────────── purchase chain ───────────────────────

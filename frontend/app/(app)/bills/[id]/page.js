@@ -20,6 +20,7 @@ import { api, ApiError } from '@/lib/api'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, formatMoney } from '@/lib/format'
 import { useGuardedAction } from '@/lib/useGuardedAction'
+import { showBudgetWarnings } from '@/lib/budgetWarnings'
 
 const STAGES = [{ value: 'draft', label: 'Draft' }, { value: 'posted', label: 'Posted' }]
 
@@ -32,8 +33,9 @@ export default function BillDetailPage() {
 
   const [postBill, posting] = useGuardedAction(async () => {
     try {
-      await api.post(`/bills/${id}/post`)
+      const res = await api.post(`/bills/${id}/post`)
       push('Bill posted — stock received, ledger updated', { type: 'success' })
+      showBudgetWarnings(push, res.warnings)
       reload()
     } catch (err) {
       push(err instanceof ApiError ? err.message : 'Could not post bill', { type: 'error' })

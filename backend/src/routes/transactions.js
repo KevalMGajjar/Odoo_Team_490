@@ -11,6 +11,7 @@ import { postEntry, reverseEntry, checkBalance, toDateOnly, postDraftEntry, rese
 import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
 import { postPayment } from '../services/payment.js'
+import { warningsForLines } from '../services/budget.js'
 import {
   postVoucher, peekVoucherNo, cashBankAccounts,
   getLastCashBankAccount, VOUCHER_META, fiscalYearOf, fiscalYearLabel,
@@ -211,7 +212,8 @@ router.post('/purchase-orders/:id/confirm', verifyJWT, canWrite, async (req, res
       include: { vendor: true, lines: true },
     })
     broadcastDocument('purchaseOrder:confirmed', { id: row.id, number: row.number })
-    res.json(row)
+    const warnings = await warningsForLines(prisma, { lines: row.lines, date: row.orderDate })
+    res.json({ ...row, warnings })
   } catch (err) { next(err) }
 })
 
@@ -350,7 +352,8 @@ router.post('/bills/:id/post', verifyJWT, canWrite, async (req, res, next) => {
     )
     broadcastDocument('bill:posted', { id: row.id, number: row.number }, row.vendorId)
     broadcastDocument('stock:changed', { source: row.number })
-    res.json(row)
+    const warnings = await warningsForLines(prisma, { lines: row.lines, date: row.billDate })
+    res.json({ ...row, warnings })
   } catch (err) { next(err) }
 })
 
@@ -423,7 +426,8 @@ router.post('/sales-orders/:id/confirm', verifyJWT, canWrite, async (req, res, n
       include: { customer: true, lines: true },
     })
     broadcastDocument('salesOrder:confirmed', { id: row.id, number: row.number })
-    res.json(row)
+    const warnings = await warningsForLines(prisma, { lines: row.lines, date: row.orderDate })
+    res.json({ ...row, warnings })
   } catch (err) { next(err) }
 })
 
@@ -548,7 +552,8 @@ router.post('/invoices/:id/post', verifyJWT, canWrite, async (req, res, next) =>
     )
     broadcastDocument('invoice:posted', { id: row.id, number: row.number }, row.customerId)
     broadcastDocument('stock:changed', { source: row.number })
-    res.json(row)
+    const warnings = await warningsForLines(prisma, { lines: row.lines, date: row.invoiceDate })
+    res.json({ ...row, warnings })
   } catch (err) { next(err) }
 })
 

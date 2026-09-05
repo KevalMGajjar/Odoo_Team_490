@@ -148,20 +148,30 @@ export const analyticCreate = z.object({
 export const analyticUpdate = analyticCreate.partial()
 
 // ─────────────────────────── budgets ───────────────────────────
+// Header + lines, like a Purchase/Sales Order — one Budget, many
+// BudgetLines, each an Analytic Account + its own committed amount. Type is
+// never sent here: it's always read from the chosen Analytic Account.
+const budgetLine = z.object({
+  analyticAccountId: uuid('Analytic account'),
+  committedAmount: money('Committed amount'),
+})
+
 const budgetBase = z.object({
   name: name(2, 120),
-  analyticAccountId: uuid('Analytic account'),
   startDate: isoDate('Start date'),
   endDate: isoDate('End date'),
-  plannedAmount: money('Planned amount'),
   responsibleId: optionalUuid('Responsible person'),
+  lines: z.array(budgetLine).min(1, 'Add at least one line'),
 })
 
 export const budgetCreate = budgetBase
   .refine((d) => d.endDate > d.startDate, {
     message: 'End date must be after the start date', path: ['endDate'],
   })
-  .refine((d) => Number(d.plannedAmount) > 0, {
-    message: 'Planned amount must be greater than zero', path: ['plannedAmount'],
-  })
-export const budgetUpdate = budgetBase.partial()
+export const budgetUpdate = z.object({
+  name: name(2, 120).optional(),
+  startDate: isoDate('Start date').optional(),
+  endDate: isoDate('End date').optional(),
+  responsibleId: optionalUuid('Responsible person'),
+  lines: z.array(budgetLine).min(1, 'Add at least one line').optional(),
+})

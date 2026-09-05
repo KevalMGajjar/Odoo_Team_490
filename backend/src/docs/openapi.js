@@ -302,16 +302,28 @@ in transit. Format for display; never recompute a total the server did not send.
             type: { type: 'string', enum: ['income', 'expense'] },
           },
         },
+        BudgetLine: {
+          type: 'object', required: ['analyticAccountId', 'committedAmount'],
+          properties: {
+            id: { type: 'string', format: 'uuid', readOnly: true },
+            analyticAccountId: { type: 'string', format: 'uuid' },
+            committedAmount: moneyStr,
+            achieved: { ...moneyStr, readOnly: true },
+            achievedPct: { ...moneyStr, readOnly: true },
+            toAchieve: { ...moneyStr, readOnly: true },
+          },
+        },
         Budget: {
-          type: 'object', required: ['name', 'analyticAccountId', 'startDate', 'endDate', 'plannedAmount'],
+          type: 'object', required: ['name', 'startDate', 'endDate', 'lines'],
           properties: {
             id: { type: 'string', format: 'uuid', readOnly: true },
             name: { type: 'string' },
-            analyticAccountId: { type: 'string', format: 'uuid' },
             startDate: { type: 'string', format: 'date' },
             endDate: { type: 'string', format: 'date' },
-            plannedAmount: moneyStr,
             responsibleId: { type: 'string', format: 'uuid', nullable: true },
+            state: { type: 'string', enum: ['draft', 'confirmed', 'revised', 'cancelled'], readOnly: true },
+            revisesId: { type: 'string', format: 'uuid', nullable: true, readOnly: true },
+            lines: { type: 'array', items: { $ref: '#/components/schemas/BudgetLine' } },
           },
         },
         Category: {
@@ -550,7 +562,8 @@ in transit. Format for display; never recompute a total the server did not send.
       ...masterPaths('taxes', 'Taxes', '#/components/schemas/Tax'),
       ...masterPaths('currencies', 'Currencies', '#/components/schemas/Currency'),
       ...masterPaths('analytic-accounts', 'Analytic accounts', '#/components/schemas/AnalyticAccount'),
-      ...masterPaths('budgets', 'Budgets', '#/components/schemas/Budget'),
+      // Budgets are bespoke (routes/budgets.js, Draft/Confirm/Revise/Cancel
+      // workflow) — like Users, not documented via the generic masterPaths shape.
 
       '/currency-rates': {
         get: {

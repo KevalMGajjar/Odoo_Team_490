@@ -230,11 +230,11 @@ export async function seedMasters(tx, { log = () => {} } = {}) {
     budgets.push(await tx.budget.create({
       data: {
         name,
-        analyticAccountId: analytics[analyticName].id,
-        plannedAmount: String(planned),
         startDate: start,
         endDate: end,
         responsibleId: users.admin.id,
+        state: 'confirmed',
+        lines: { create: [{ analyticAccountId: analytics[analyticName].id, committedAmount: String(planned) }] },
       },
     }))
   }

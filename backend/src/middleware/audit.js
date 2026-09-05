@@ -34,6 +34,9 @@ export const AUDIT_ACTIONS = Object.freeze({
   analytic_account_created: 'analytic_account_created',
   budget_created: 'budget_created',
   budget_updated: 'budget_updated',
+  budget_confirmed: 'budget_confirmed',
+  budget_cancelled: 'budget_cancelled',
+  budget_revised: 'budget_revised',
 
   // ledger
   journal_entry_posted: 'journal_entry_posted',

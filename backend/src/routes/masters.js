@@ -154,26 +154,16 @@ router.use('/analytic-accounts', crudRouter({
   updateSchema: S.analyticUpdate,
   orderBy: { name: 'asc' },
   eventPrefix: 'analytic',
+  include: { budgetLines: { include: { budget: true }, orderBy: { budget: { createdAt: 'desc' } } } },
   auditActions: { created: AUDIT_ACTIONS.analytic_account_created },
   beforeArchive: guardInUse([
     { model: 'journalItem', field: 'analyticAccountId', label: 'ledger entries' },
-    { model: 'budget', field: 'analyticAccountId', label: 'budgets' },
+    { model: 'budgetLine', field: 'analyticAccountId', label: 'budgets' },
   ]),
 }))
 
-// ─────────────────────────── budgets ───────────────────────────
-router.use('/budgets', crudRouter({
-  model: 'budget',
-  label: 'Budget',
-  createSchema: S.budgetCreate,
-  updateSchema: S.budgetUpdate,
-  orderBy: { startDate: 'desc' },
-  include: { analyticAccount: true, responsible: { select: { id: true, name: true } } },
-  auditActions: {
-    created: AUDIT_ACTIONS.budget_created,
-    updated: AUDIT_ACTIONS.budget_updated,
-  },
-}))
+// Budgets are bespoke (routes/budgets.js) — the Draft/Confirm/Revise/Cancel
+// workflow and per-line achieved-amount computation don't fit crudRouter.
 
 // ────────────────────────── currencies ──────────────────────────
 router.use('/currencies', crudRouter({

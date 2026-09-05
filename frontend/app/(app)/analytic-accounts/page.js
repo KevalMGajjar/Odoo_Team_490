@@ -1,51 +1,73 @@
 'use client'
 
-import { Wallet, TrendingUp } from 'lucide-react'
-import { SimpleMasterPage } from '@/components/masters/SimpleMasterPage'
-import { FormField, TextInput, Select } from '@/components/ui/FormField'
-import { FormGrid } from '@/components/layout/FormSheet'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Plus, List, LayoutGrid, Wallet, TrendingUp } from 'lucide-react'
+import { ControlPanel, ViewSwitcher } from '@/components/layout/ControlPanel'
+import { DataTable } from '@/components/ui/DataTable'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/Button'
+import { useApiList } from '@/lib/useApi'
+import { useAuth, canWrite } from '@/lib/auth'
 
-export default function AnalyticAccountsPage() {
+const TYPE_LABEL = { income: 'Income', expense: 'Expense' }
+const VIEW_OPTIONS = [
+  { value: 'list', icon: List, label: 'List' },
+  { value: 'kanban', icon: LayoutGrid, label: 'Kanban' },
+]
+
+export default function AnalyticAccountsListPage() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const { rows, loading, search, setSearch, page, pageSize, total, setPage } = useApiList('/analytic-accounts')
+  const [view, setView] = useState('list')
+
+  const columns = [
+    { key: 'name', header: 'Analytical Account' },
+    { key: 'type', header: 'Type', render: (r) => TYPE_LABEL[r.type] ?? r.type },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+  ]
+
   return (
-    <SimpleMasterPage
-      title="Analytic Accounts"
-      breadcrumb="Account"
-      apiPath="/analytic-accounts"
-      archivable={false}
-      emptyForm={{ name: '', type: 'expense' }}
-      columns={[
-        { key: 'name', header: 'Name' },
-        { key: 'type', header: 'Type', render: (r) => (r.type === 'income' ? 'Income' : 'Expense') },
-      ]}
-      renderCard={(r) => (
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface-subtle">
-            {r.type === 'income' ? <TrendingUp size={20} className="text-state-paid" /> : <Wallet size={20} className="text-ink-faint" />}
-          </div>
-          <p className="truncate w-full text-sm font-semibold text-ink">{r.name}</p>
-          <p className="text-xs text-ink-faint">{r.type === 'income' ? 'Income' : 'Expense'}</p>
-        </div>
-      )}
-      Fields={({ form, setForm, errors, readOnly }) => (
-        <FormGrid>
-          <FormField label="Name" required error={errors.name} className="col-span-2">
-            <TextInput
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Showroom Operations"
-              disabled={readOnly}
-              autoFocus
-              required
-            />
-          </FormField>
-          <FormField label="Type" required error={errors.type}>
-            <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} disabled={readOnly}>
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </Select>
-          </FormField>
-        </FormGrid>
-      )}
-    />
+    <div className="flex h-full flex-col">
+      <ControlPanel
+        breadcrumb="Account"
+        title="Analytic Accounts"
+        actions={
+          canWrite(user?.role) && (
+            <Button variant="primary" size="sm" icon={Plus} onClick={() => router.push('/analytic-accounts/new')}>New</Button>
+          )
+        }
+        viewSwitcher={<ViewSwitcher value={view} onChange={setView} options={VIEW_OPTIONS} />}
+      />
+      <div className="flex-1 overflow-hidden">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          search={search}
+          onSearchChange={setSearch}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onRowClick={(r) => router.push(`/analytic-accounts/${r.id}`)}
+          emptyTitle="No analytical accounts yet."
+          emptyAction={canWrite(user?.role) ? 'New' : undefined}
+          onEmptyAction={() => router.push('/analytic-accounts/new')}
+          view={view}
+          renderCard={(r) => (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-surface-subtle">
+                {r.type === 'income' ? <TrendingUp size={20} className="text-state-paid" /> : <Wallet size={20} className="text-ink-faint" />}
+              </div>
+              <p className="truncate w-full text-sm font-semibold text-ink">{r.name}</p>
+              <p className="text-xs text-ink-faint">{TYPE_LABEL[r.type] ?? r.type}</p>
+              <StatusBadge status={r.status} />
+            </div>
+          )}
+        />
+      </div>
+    </div>
   )
 }

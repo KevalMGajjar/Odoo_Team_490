@@ -238,10 +238,16 @@ export async function inventoryValuation(tx, { asOf = new Date() } = {}) {
 }
 
 // ─────────────────────────── budget report ───────────────────────────
+// One row per BudgetLine of every Confirmed budget — only a Confirmed budget
+// is "the" live plan for its analytic accounts; Draft isn't approved yet and
+// Revised/Cancelled are history, so neither belongs in the live report.
 export async function budgetReport(tx, { from = null, to = null } = {}) {
   const budgets = await tx.budget.findMany({
-    where: { status: 'active' },
-    include: { analyticAccount: true, responsible: { select: { id: true, name: true } } },
+    where: { state: 'confirmed' },
+    include: {
+      lines: { include: { analyticAccount: true } },
+      responsible: { select: { id: true, name: true } },
+    },
     orderBy: { startDate: 'asc' },
   })
 
@@ -251,40 +257,42 @@ export async function budgetReport(tx, { from = null, to = null } = {}) {
     const start = from && toDateOnly(from) > b.startDate ? toDateOnly(from) : b.startDate
     const end = to && toDateOnly(to) < b.endDate ? toDateOnly(to) : b.endDate
 
-    const agg = await tx.journalItem.aggregate({
-      where: {
-        analyticAccountId: b.analyticAccountId,
-        entry: { state: 'posted', date: { gte: start, lte: end } },
-      },
-      _sum: { debit: true, credit: true },
-    })
+    for (const line of b.lines) {
+      const agg = await tx.journalItem.aggregate({
+        where: {
+          analyticAccountId: line.analyticAccountId,
+          entry: { state: 'posted', date: { gte: start, lte: end } },
+        },
+        _sum: { debit: true, credit: true },
+      })
 
-    const debit = money(agg._sum.debit ?? 0)
-    const credit = money(agg._sum.credit ?? 0)
-    // expense analytics accumulate on the debit side, income on the credit side
-    const actual = b.analyticAccount.type === 'expense'
-      ? money(debit.minus(credit))
-      : money(credit.minus(debit))
+      const debit = money(agg._sum.debit ?? 0)
+      const credit = money(agg._sum.credit ?? 0)
+      // expense analytics accumulate on the debit side, income on the credit side
+      const actual = line.analyticAccount.type === 'expense'
+        ? money(debit.minus(credit))
+        : money(credit.minus(debit))
 
-    const planned = money(b.plannedAmount)
-    const variance = money(planned.minus(actual))
-    const achievement = planned.isZero() ? money(0) : money(actual.dividedBy(planned).times(100))
+      const planned = money(line.committedAmount)
+      const variance = money(planned.minus(actual))
+      const achievement = planned.isZero() ? money(0) : money(actual.dividedBy(planned).times(100))
 
-    rows.push({
-      budgetId: b.id,
-      name: b.name,
-      analyticAccountId: b.analyticAccountId,
-      analyticAccount: b.analyticAccount.name,
-      type: b.analyticAccount.type,
-      responsible: b.responsible?.name ?? null,
-      startDate: b.startDate,
-      endDate: b.endDate,
-      planned,
-      actual,
-      variance,
-      achievementPct: achievement,
-      overBudget: b.analyticAccount.type === 'expense' && actual.greaterThan(planned),
-    })
+      rows.push({
+        budgetId: b.id,
+        name: b.name,
+        analyticAccountId: line.analyticAccountId,
+        analyticAccount: line.analyticAccount.name,
+        type: line.analyticAccount.type,
+        responsible: b.responsible?.name ?? null,
+        startDate: b.startDate,
+        endDate: b.endDate,
+        planned,
+        actual,
+        variance,
+        achievementPct: achievement,
+        overBudget: line.analyticAccount.type === 'expense' && actual.greaterThan(planned),
+      })
+    }
   }
 
   const totals = {
