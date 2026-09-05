@@ -6,6 +6,7 @@ import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
 import { postPayment } from '../services/payment.js'
 import { postVoucher } from '../services/voucher.js'
+import { nextNumber } from '../services/sequence.js'
 import { D, money, lineTax } from '../lib/money.js'
 
 /**
@@ -113,7 +114,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const bill = await tx.vendorBill.create({
         data: {
-          number: `BILL/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
+          number: await nextNumber(tx, { code: 'BILL', prefix: 'BILL', date: day(date) }),
           vendorId: C[vendorName].id,
           billDate: day(date),
           dueDate: day(date.replace(/^(\d{4})-(\d{2})/, (_, y, mth) => `${y}-${String(Number(mth) + 1).padStart(2, '0')}`)),
@@ -152,7 +153,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const inv = await tx.customerInvoice.create({
         data: {
-          number: `INV/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
+          number: await nextNumber(tx, { code: 'INV', prefix: 'INV', date: day(date) }),
           customerId: C[customerName].id,
           invoiceDate: day(date),
           dueDate: day(date),
@@ -176,7 +177,7 @@ async function main() {
     })
     const inv = await tx.customerInvoice.create({
       data: {
-        number: `INV/${FY_START_YEAR}/0099`,
+        number: await nextNumber(tx, { code: 'INV', prefix: 'INV', date: day('2025-07-20') }),
         customerId: C['Vertex Trading FZE'].id,
         invoiceDate: day('2025-07-20'),
         dueDate: day('2025-08-19'),
@@ -189,7 +190,7 @@ async function main() {
     // settled later at a better rate → realised exchange gain
     const pay = await tx.payment.create({
       data: {
-        number: `PAY/${FY_START_YEAR}/0090`, direction: 'inbound', partnerId: C['Vertex Trading FZE'].id,
+        number: await nextNumber(tx, { code: 'PAY', prefix: 'PAY', date: day('2025-08-12') }), direction: 'inbound', partnerId: C['Vertex Trading FZE'].id,
         journalId: J.BNK.id, paymentDate: day('2025-08-12'), currencyId: CUR.USD.id,
         amount: posted.total.toString(),
         allocations: { create: [{ invoiceId: posted.id, amount: posted.total.toString() }] },
@@ -211,7 +212,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const pay = await tx.payment.create({
         data: {
-          number: `PAY/${FY_START_YEAR}/${String(n).padStart(4, '0')}`,
+          number: await nextNumber(tx, { code: 'PAY', prefix: 'PAY', date: day(inv.date) }),
           direction: 'inbound', partnerId: inv.customerId,
           journalId: idx % 2 === 0 ? J.BNK.id : J.CSH.id,
           paymentDate: day(inv.date), currencyId: CUR.INR.id,
@@ -235,7 +236,7 @@ async function main() {
     await prisma.$transaction(async (tx) => {
       const pay = await tx.payment.create({
         data: {
-          number: `PAY/${FY_START_YEAR}/${String(100 + n).padStart(4, '0')}`,
+          number: await nextNumber(tx, { code: 'PAY', prefix: 'PAY', date: bill.dueDate ?? bill.billDate }),
           direction: 'outbound', partnerId: bill.vendorId,
           journalId: J.BNK.id, paymentDate: bill.dueDate ?? bill.billDate,
           currencyId: CUR.INR.id, amount: bill.total.toString(),
