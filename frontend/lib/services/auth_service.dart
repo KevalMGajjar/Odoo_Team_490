@@ -12,16 +12,14 @@ class AuthService {
   static const _authBoxName = 'auth_session';
 
   final ApiService _apiService;
-  final OfflineStorage _offlineStorage;
 
   AppUser? _currentUser;
   String? _token;
 
   AuthService({
     required ApiService apiService,
-    required OfflineStorage offlineStorage,
-  })  : _apiService = apiService,
-        _offlineStorage = offlineStorage;
+    OfflineStorage? offlineStorage,
+  })  : _apiService = apiService;
 
   AppUser? get currentUser => _currentUser;
   String? get token => _token;
@@ -92,9 +90,8 @@ class AuthService {
     }
   }
 
-  /// Sign out: clear token, cached session, and wipe cached ERP data
+  /// Sign out: clear token & cached auth session, while PRESERVING offline ERP cache.
   Future<void> logout() async {
-    final userId = _currentUser?.id;
     try {
       await _apiService.logout();
     } catch (_) {}
@@ -108,10 +105,8 @@ class AuthService {
       await authBox.clear();
     }
 
-    if (userId != null) {
-      await _offlineStorage.clearForUser(userId);
-    } else {
-      await _offlineStorage.clearAll();
-    }
+    // In Offline-First architecture, we do NOT wipe offline entity boxes on logout!
+    // The cached ERP data remains in Hive storage so that previously synced records
+    // are immediately visible when the user signs back in (even in offline mode).
   }
 }

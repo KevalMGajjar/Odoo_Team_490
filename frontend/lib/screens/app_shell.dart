@@ -22,7 +22,6 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedTab = 0;
-  bool _initialSyncDone = false;
 
   @override
   void initState() {
@@ -33,8 +32,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _runInitialSync() async {
-    if (_initialSyncDone || !mounted) return;
-    _initialSyncDone = true;
+    if (!mounted) return;
 
     final auth = context.read<AuthProvider>();
     final syncManager = context.read<SyncManager>();
@@ -44,9 +42,11 @@ class _AppShellState extends State<AppShell> {
     final user = auth.user;
     if (user == null) return;
 
+    // 1. Immediately read all cached records from Hive
     syncManager.loadInitialStatus(user.id);
     data.loadFromStorage();
 
+    // 2. Perform background sync if online
     if (conn.isOnline && !syncManager.isSyncing) {
       final success = await syncManager.syncAll(userId: user.id, role: user.role);
       if (success && mounted) {

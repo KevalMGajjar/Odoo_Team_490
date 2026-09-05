@@ -18,7 +18,9 @@ class DataProvider extends ChangeNotifier {
 
   bool _isLoading = false;
 
-  DataProvider(this._storage);
+  DataProvider(this._storage) {
+    _loadFromHive();
+  }
 
   List<Contact> get contacts => _contacts;
   List<Product> get products => _products;
@@ -39,11 +41,7 @@ class DataProvider extends ChangeNotifier {
       _vendorBills.isNotEmpty ||
       _products.isNotEmpty;
 
-  /// Load all cached entities from Hive
-  void loadFromStorage() {
-    _isLoading = true;
-    notifyListeners();
-
+  void _loadFromHive() {
     _contacts = _storage.contacts;
     _products = _storage.products;
     _accounts = _storage.accounts;
@@ -54,7 +52,12 @@ class DataProvider extends ChangeNotifier {
     _purchaseOrders = _storage.purchaseOrders;
     _salesOrders = _storage.salesOrders;
     _journalEntries = _storage.journalEntries;
+  }
 
+  /// Load all cached entities from Hive and notify listeners
+  void loadFromStorage() {
+    _isLoading = true;
+    _loadFromHive();
     _isLoading = false;
     notifyListeners();
   }

@@ -78,16 +78,22 @@ class OfflineStorage {
     });
   }
 
-  /// Load sync metadata for a user (null if never synced).
-  SyncMeta? getSyncMeta(String userId) {
+  /// Load sync metadata for a user or the latest synced session.
+  SyncMeta? getSyncMeta([String? userId]) {
     final metaBox = Hive.box<Map>(_metaBoxName);
-    final raw = metaBox.get(userId);
-    if (raw == null) return null;
-    return SyncMeta.fromJson(Map<String, dynamic>.from(raw));
+    if (userId != null) {
+      final raw = metaBox.get(userId);
+      if (raw != null) return SyncMeta.fromJson(Map<String, dynamic>.from(raw));
+    }
+    if (metaBox.isNotEmpty) {
+      final latest = metaBox.values.last;
+      return SyncMeta.fromJson(Map<String, dynamic>.from(latest));
+    }
+    return null;
   }
 
-  /// Check if any cached data exists for this user.
-  bool hasCachedData(String userId) => getSyncMeta(userId) != null;
+  /// Check if any cached data exists.
+  bool hasCachedData([String? userId]) => getSyncMeta(userId) != null || contacts.isNotEmpty || customerInvoices.isNotEmpty;
 
   /// Load all items from a specific entity box.
   List<Map<String, dynamic>> getAll(String boxName) {
