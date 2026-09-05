@@ -16,6 +16,10 @@ const TONE = {
   active: 'bg-[#28a7451f] text-state-paid',
   archived: 'bg-surface-subtle text-ink-faint',
   info: 'bg-[#17a2b81f] text-state-info',
+  not_synced: 'bg-surface-subtle text-ink-faint',
+  pending: 'bg-[#f0ad4e1f] text-[#a06a1f]',
+  synced: 'bg-[#28a7451f] text-state-paid',
+  failed: 'bg-[#d9534f1f] text-state-overdue',
 }
 
 const LABEL = {
@@ -28,6 +32,10 @@ const LABEL = {
   cancelled: 'Cancelled',
   active: 'Active',
   archived: 'Archived',
+  not_synced: 'Not synced',
+  pending: 'Syncing…',
+  synced: 'Synced',
+  failed: 'Failed',
 }
 
 export function StatusBadge({ status, children, className }) {

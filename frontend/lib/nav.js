@@ -98,6 +98,7 @@ export const NAV = [
     adminOnly: true,
     items: [
       { label: 'Audit Log', href: '/audit' },
+      { label: 'Odoo Sync', href: '/odoo-sync' },
       { label: 'Health', href: '/health' },
     ],
   },
