@@ -17,10 +17,10 @@ export default function PortalLayout({ children }) {
   useEffect(() => {
     if (loading) return
     if (!user) router.replace('/login')
-    else if (user.role !== 'contact') router.replace('/dashboard')
+    else if (user.role !== 'user') router.replace('/dashboard')
   }, [user, loading, router])
 
-  if (loading || !user || user.role !== 'contact') {
+  if (loading || !user || user.role !== 'user') {
     return (
       <div className="flex h-screen items-center justify-center bg-surface-bg">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-brand" />

@@ -23,7 +23,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }) {
   const [railOnly, setRailOnly] = useState(false)
   const [hydrated, setHydrated] = useState(false)
 
-  const nav = user?.role === 'contact' ? PORTAL_NAV : NAV
+  const nav = user?.role === 'user' ? PORTAL_NAV : NAV
   const sections = user?.role === 'admin' ? nav : nav.filter((s) => !s.adminOnly)
 
   useEffect(() => {

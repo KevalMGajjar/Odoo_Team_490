@@ -1,6 +1,6 @@
 /**
  * Sidebar structure — exactly UI.md §4's grouped tree. Each group is
- * role-filtered at render time (an invoicing_user never sees ADMIN; a portal
+ * role-filtered at render time (an accountant never sees ADMIN; a portal
  * user gets an entirely different sidebar built separately in the portal layout).
  */
 
@@ -97,6 +97,7 @@ export const NAV = [
     flat: true,
     adminOnly: true,
     items: [
+      { label: 'Users', href: '/users' },
       { label: 'Audit Log', href: '/audit' },
       { label: 'Odoo Sync', href: '/odoo-sync' },
       { label: 'Health', href: '/health' },
@@ -115,7 +116,7 @@ export const PORTAL_NAV = [
   },
 ]
 
-/** Filter the nav tree by role — a `viewer`/`invoicing_user` never sees ADMIN. */
+/** Filter the nav tree by role — an `accountant` never sees ADMIN. */
 export function navForRole(role) {
   return NAV.filter((section) => !section.adminOnly || role === 'admin')
 }

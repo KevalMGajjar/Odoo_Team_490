@@ -8,10 +8,10 @@ import { createAndPostStockAdjustment } from '../services/stockAdjustment.js'
 import { stockAdjustmentCreate } from '../schemas/stock.js'
 
 const router = express.Router()
-const canWrite = requireRole(['admin', 'invoicing_user'])
+const canWrite = requireRole(['admin', 'accountant'])
 
 const internalOnly = (req, res, next) =>
-  req.user?.role === 'contact'
+  req.user?.role === 'user'
     ? res.status(403).json({ message: 'Not available to portal users' })
     : next()
 

@@ -11,26 +11,30 @@ import { signupSchema, loginSchema, forgotSchema, resetSchema } from '../schemas
 const router = express.Router()
 
 const publicUser = (u) => ({
-  id: u.id, name: u.name, email: u.email, role: u.role,
+  id: u.id, name: u.name, loginId: u.loginId, email: u.email, role: u.role,
   contactId: u.contactId ?? null, status: u.status,
 })
 
 // ─────────────────────────── signup ───────────────────────────
+// Self-service — always creates an Accountant. Admin accounts and Portal
+// Users are provisioned by an admin via POST /users, never through this route.
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body
+    const { name, loginId, email, password } = req.body
 
-    const existing = await prisma.user.findUnique({ where: { email } })
-    if (existing) throw conflict('An account with this email already exists')
+    const existingEmail = await prisma.user.findUnique({ where: { email } })
+    if (existingEmail) throw conflict('An account with this email already exists')
+    const existingLoginId = await prisma.user.findUnique({ where: { loginId } })
+    if (existingLoginId) throw invalidField('loginId', 'This Login ID is already taken')
 
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { name, email, password: await bcrypt.hash(password, 10), role },
+        data: { name, loginId, email, password: await bcrypt.hash(password, 10), role: 'accountant' },
       })
       await writeAuditLog(tx, {
         action: AUDIT_ACTIONS.user_registered,
         entity_type: 'user', entity_id: created.id,
-        new_value: { email, role }, performed_by: created.id,
+        new_value: { loginId, email, role: 'accountant' }, performed_by: created.id,
       })
       return created
     })
@@ -46,12 +50,12 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
 // ─────────────────────────── login ────────────────────────────
 router.post('/login', validate(loginSchema), async (req, res, next) => {
   try {
-    const { email, password } = req.body
-    const user = await prisma.user.findUnique({ where: { email } })
+    const { loginId, password } = req.body
+    const user = await prisma.user.findUnique({ where: { loginId } })
 
-    // Same message either way — never reveal whether an email is registered.
+    // Same message either way — never reveal whether a Login ID is registered.
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      throw unauthorized('Incorrect email or password')
+      throw unauthorized('Incorrect Login ID or password')
     }
     if (user.status === 'archived') throw unauthorized('This account has been deactivated')
 
@@ -160,12 +164,12 @@ router.get('/demo-accounts', async (req, res, next) => {
   try {
     if (process.env.NODE_ENV !== 'development') throw notFound('Route')
     const users = await prisma.user.findMany({
-      where: { email: { endsWith: '@urbanfurniture.com' } },
-      select: { name: true, email: true, role: true },
+      where: { role: { in: ['admin', 'accountant'] } },
+      select: { name: true, loginId: true, role: true },
       orderBy: { role: 'asc' },
     })
     const portal = await prisma.user.findFirst({
-      where: { role: 'contact' }, select: { name: true, email: true, role: true },
+      where: { role: 'user' }, select: { name: true, loginId: true, role: true },
     })
     res.json({ accounts: [...users, ...(portal ? [portal] : [])], password: 'demo123' })
   } catch (err) { next(err) }

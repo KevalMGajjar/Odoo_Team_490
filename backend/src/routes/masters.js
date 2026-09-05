@@ -209,7 +209,7 @@ router.get('/currency-rates', verifyJWT, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-router.post('/currency-rates', verifyJWT, requireRole(['admin', 'invoicing_user']),
+router.post('/currency-rates', verifyJWT, requireRole(['admin', 'accountant']),
   validate(S.currencyRateCreate), async (req, res, next) => {
     try {
       const { currencyId, date, rate } = req.body

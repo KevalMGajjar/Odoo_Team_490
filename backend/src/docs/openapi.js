@@ -80,13 +80,13 @@ function masterPaths(base, tag, schemaRef, { writeRoles = 'admin' } = {}) {
     [`/${base}`]: {
       get: {
         tags: [tag], summary: `List ${tag.toLowerCase()}`,
-        description: 'Readable by any internal role, including `viewer`.',
+        description: 'Readable by any internal role (`admin`, `accountant`).',
         parameters: listParams,
         responses: { 200: ok('Paginated list', listResponse(schemaRef)), ...errors(401) },
       },
       post: {
         tags: [tag], summary: `Create ${tag.toLowerCase()}`,
-        description: 'Roles: `admin`, `invoicing_user`.',
+        description: 'Roles: `admin`, `accountant`.',
         requestBody: { required: true, content: { 'application/json': { schema: { $ref: schemaRef } } } },
         responses: { 201: ok('Created', { $ref: schemaRef }), ...errors(401, 403, 409, 422) },
       },
@@ -152,12 +152,11 @@ posted it is **immutable**: corrections are made by posting a reversal, never by
 Browsers get an httpOnly cookie automatically. Any other client — a mobile app, a desktop client,
 a script — should use the bearer token instead:
 
-1. \`POST /auth/login\` with email and password. The response body includes \`token\`.
+1. \`POST /auth/login\` with a Login ID and password. The response body includes \`token\`.
 2. Send \`Authorization: Bearer <token>\` on every subsequent request.
 
-For a **read-only** client, sign in as a user with the \`viewer\` role. It can read everything an
-invoicing user can, but is in no write role, so a leaked token cannot alter the ledger.
-The seeded account is \`viewer@urbanfurniture.com\` / \`demo123\`.
+The seeded accountant account (\`accountant1\` / \`demo123\`) can read and create everything short
+of user management and archiving — a reasonable default for a companion app's token.
 
 Native apps send no \`Origin\` header and are unaffected by CORS. Browser-based companions must be
 listed in \`CORS_ORIGINS\`; in development any localhost port is allowed.
@@ -178,7 +177,7 @@ in transit. Format for display; never recompute a total the server did not send.
     ],
     tags: [
       { name: 'Auth', description: 'Sign in, sessions and password reset' },
-      { name: 'Reports', description: 'All figures derived live from the ledger. Read-only — available to `viewer`.' },
+      { name: 'Reports', description: 'All figures derived live from the ledger. Read-only for every internal role.' },
       { name: 'Contacts' }, { name: 'Products' }, { name: 'Categories' },
       { name: 'Accounts', description: 'Chart of accounts' },
       { name: 'Journals' }, { name: 'Taxes' }, { name: 'Currencies' },
@@ -202,16 +201,17 @@ in transit. Format for display; never recompute a total the server did not send.
           properties: {
             id: { type: 'string', format: 'uuid' },
             name: { type: 'string' },
+            loginId: { type: 'string' },
             email: { type: 'string', format: 'email' },
-            role: { type: 'string', enum: ['admin', 'invoicing_user', 'viewer', 'contact'] },
+            role: { type: 'string', enum: ['admin', 'accountant', 'user'] },
             contactId: { type: 'string', format: 'uuid', nullable: true },
             status: { type: 'string', enum: ['active', 'archived'] },
           },
         },
         LoginRequest: {
-          type: 'object', required: ['email', 'password'],
+          type: 'object', required: ['loginId', 'password'],
           properties: {
-            email: { type: 'string', example: 'viewer@urbanfurniture.com' },
+            loginId: { type: 'string', example: 'accountant1' },
             password: { type: 'string', example: 'demo123' },
           },
         },
@@ -383,10 +383,13 @@ in transit. Format for display; never recompute a total the server did not send.
             content: {
               'application/json': {
                 schema: {
-                  type: 'object', required: ['name', 'email', 'password'],
+                  type: 'object', required: ['name', 'loginId', 'email', 'password', 'confirmPassword'],
                   properties: {
-                    name: { type: 'string' }, email: { type: 'string' }, password: { type: 'string', minLength: 6 },
-                    role: { type: 'string', enum: ['admin', 'invoicing_user'], default: 'invoicing_user' },
+                    name: { type: 'string' },
+                    loginId: { type: 'string', minLength: 6, maxLength: 12 },
+                    email: { type: 'string' },
+                    password: { type: 'string', minLength: 8 },
+                    confirmPassword: { type: 'string' },
                   },
                 },
               },

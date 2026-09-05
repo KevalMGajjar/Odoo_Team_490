@@ -18,7 +18,7 @@ export function initRealtime(httpServer, { origin }) {
 
   io.on('connection', (socket) => {
     const { role, contactId } = socket.handshake.auth ?? {}
-    if (role === 'contact' && contactId) socket.join(`partner:${contactId}`)
+    if (role === 'user' && contactId) socket.join(`partner:${contactId}`)
     else if (role) socket.join('internal')
 
     socket.on('disconnect', () => {})

@@ -30,8 +30,8 @@ export function AuthProvider({ children }) {
     refresh()
   }, [refresh])
 
-  const login = useCallback(async (email, password) => {
-    const { user } = await api.post('/auth/login', { email, password })
+  const login = useCallback(async (loginId, password) => {
+    const { user } = await api.post('/auth/login', { loginId, password })
     setUser(user)
     return user
   }, [])
@@ -59,9 +59,9 @@ export function useAuth() {
 
 /** Role helpers — mirrors the server-side matrix in PLAN.md §8. UI hides;
  *  the API is what actually enforces these, so this is convenience only. */
-export const canWrite = (role) => role === 'admin' || role === 'invoicing_user'
+export const canWrite = (role) => role === 'admin' || role === 'accountant'
 export const canModify = (role) => role === 'admin'
-export const isPortal = (role) => role === 'contact'
-export const isInternal = (role) => role && role !== 'contact'
+export const isPortal = (role) => role === 'user'
+export const isInternal = (role) => role && role !== 'user'
 
 export { ApiError }

@@ -16,9 +16,9 @@ import { broadcast } from '../lib/realtime.js'
  * response envelope, status codes and permission model identical everywhere.
  *
  * Permissions follow the problem statement exactly:
- *   admin           create / modify / archive
- *   invoicing_user  create only
- *   contact         no access to masters
+ *   admin       create / modify / archive
+ *   accountant  create only
+ *   user        no access to masters
  */
 
 const DEFAULT_PAGE_SIZE = 50
@@ -38,7 +38,7 @@ export function crudRouter({
   beforeUpdate,
   beforeArchive,
   auditActions = {},
-  createRoles = ['admin', 'invoicing_user'],
+  createRoles = ['admin', 'accountant'],
   writeRoles = ['admin'],
   eventPrefix,
 }) {

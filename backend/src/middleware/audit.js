@@ -11,6 +11,9 @@ export const AUDIT_ACTIONS = Object.freeze({
   // auth
   user_registered: 'user_registered',
   user_logged_in: 'user_logged_in',
+  user_updated: 'user_updated',
+  user_archived: 'user_archived',
+  user_unarchived: 'user_unarchived',
   password_reset: 'password_reset',
 
   // master data

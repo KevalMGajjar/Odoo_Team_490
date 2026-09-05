@@ -20,17 +20,17 @@ import * as S from '../schemas/transactions.js'
 /**
  * Transactional documents.
  *
- * Reads are open to every internal role including `viewer`.
- * Creating and posting requires `admin` or `invoicing_user`.
+ * Reads are open to every internal role.
+ * Creating and posting requires `admin` or `accountant`.
  * Reversing a posted entry is `admin` only — it is the only way to undo
  * anything, so it stays with the business owner.
  */
 
 const router = express.Router()
-const canWrite = requireRole(['admin', 'invoicing_user'])
+const canWrite = requireRole(['admin', 'accountant'])
 
 const internalOnly = (req, res, next) =>
-  req.user?.role === 'contact'
+  req.user?.role === 'user'
     ? res.status(403).json({ message: 'Not available to portal users' })
     : next()
 
@@ -487,7 +487,7 @@ router.get('/invoices/:id', verifyJWT, async (req, res, next) => {
     })
     if (!row) throw notFound('Invoice')
     // portal users may only see their own
-    if (req.user.role === 'contact' && row.customerId !== req.user.contactId) {
+    if (req.user.role === 'user' && row.customerId !== req.user.contactId) {
       throw notFound('Invoice')
     }
     res.json(row)

@@ -1,12 +1,16 @@
 'use client'
 
 import { useParams } from 'next/navigation'
+import { useState } from 'react'
+import { CreditCard } from 'lucide-react'
 import { ControlPanel } from '@/components/layout/ControlPanel'
 import { FormSheet, FormGrid, FormSection } from '@/components/layout/FormSheet'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { LineItemGrid } from '@/components/documents/LineItemGrid'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { PortalPayModal } from '@/components/portal/PortalPayModal'
 import { useApiGet } from '@/lib/useApi'
 import { formatDate, formatMoney } from '@/lib/format'
 
@@ -17,7 +21,8 @@ import { formatDate, formatMoney } from '@/lib/format'
  */
 export default function PortalDocumentDetailPage() {
   const { kind, id } = useParams()
-  const { data: doc, loading, error } = useApiGet(`/portal/documents/${kind}/${id}`)
+  const { data: doc, loading, error, reload } = useApiGet(`/portal/documents/${kind}/${id}`)
+  const [payOpen, setPayOpen] = useState(false)
 
   if (loading) {
     return (
@@ -39,10 +44,17 @@ export default function PortalDocumentDetailPage() {
   const partner = doc.customer ?? doc.vendor
   const date = doc.invoiceDate ?? doc.billDate
   const lines = doc.lines.map((l) => ({ ...l, product: l.product }))
+  const canPay = kind === 'invoice' && doc.state === 'posted' && doc.settleState !== 'paid'
 
   return (
     <div className="flex h-full flex-col">
-      <ControlPanel breadcrumb="Portal" title={doc.number} />
+      <ControlPanel
+        breadcrumb="Portal"
+        title={doc.number}
+        actions={canPay && (
+          <Button variant="primary" size="sm" icon={CreditCard} onClick={() => setPayOpen(true)}>Pay Now</Button>
+        )}
+      />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[900px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -64,6 +76,8 @@ export default function PortalDocumentDetailPage() {
           </FormSection>
         </FormSheet>
       </div>
+
+      {canPay && <PortalPayModal open={payOpen} onClose={() => setPayOpen(false)} doc={doc} onPaid={reload} />}
     </div>
   )
 }

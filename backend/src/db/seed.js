@@ -305,10 +305,10 @@ async function main() {
   log(`  stock value        ${money(stockValue).toFixed(2)}`)
   log(`  Inventory account  ${invLedger.toFixed(2)}  ${money(stockValue).equals(invLedger) ? '\x1b[32mTIES ✓\x1b[0m' : '\x1b[31mMISMATCH ✗\x1b[0m'}`)
 
-  log('\n\x1b[1m  ── sign in ──\x1b[0m')
-  log('  admin@urbanfurniture.com       demo123   (Admin)')
-  log('  accountant@urbanfurniture.com  demo123   (Invoicing User)')
-  log('  nimesh@example.com             demo123   (Contact / portal)')
+  log('\n\x1b[1m  ── sign in (by Login ID, not email) ──\x1b[0m')
+  log('  admin01       demo123   (Admin)')
+  log('  accountant1   demo123   (Accountant)')
+  log('  nimesh01      demo123   (Portal User)')
   log(`\n  done in ${((Date.now() - started) / 1000).toFixed(1)}s\n`)
 
   await prisma.$disconnect()

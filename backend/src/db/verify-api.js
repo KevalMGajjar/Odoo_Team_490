@@ -54,9 +54,9 @@ async function assertStatus(path, opts, expected, name) {
   return bad(name, `expected ${expected}, got ${r.status}: ${r.json?.message ?? r.text.slice(0, 120)}`)
 }
 
-async function login(as, email) {
-  const r = await api('/auth/login', { method: 'POST', body: { email, password: 'demo123' }, as: null })
-  if (!r.token) throw new Error(`login failed for ${email}: ${r.message}`)
+async function login(as, loginId) {
+  const r = await api('/auth/login', { method: 'POST', body: { loginId, password: 'demo123' }, as: null })
+  if (!r.token) throw new Error(`login failed for ${loginId}: ${r.message}`)
   tokens[as] = r.token
   return r.user
 }
@@ -67,12 +67,11 @@ async function main() {
 
   // ─────────── auth ───────────
   section('1. Authentication')
-  const admin = await login('admin', 'admin@urbanfurniture.com')
-  await login('acct', 'accountant@urbanfurniture.com')
-  await login('viewer', 'viewer@urbanfurniture.com')
-  await login('portal', 'nimesh@example.com')
+  const admin = await login('admin', 'admin01')
+  await login('acct', 'accountant1')
+  await login('portal', 'nimesh01')
   assertEq(admin.role, 'admin', 'admin signs in and receives a bearer token')
-  assertEq(await status('/auth/me', { as: 'viewer' }), 200, 'bearer token authenticates')
+  assertEq(await status('/auth/me', { as: 'acct' }), 200, 'bearer token authenticates')
   assertEq(await status('/auth/me', { as: null }), 401, 'no token is rejected')
 
   // ─────────── fixtures ───────────
@@ -230,7 +229,7 @@ async function main() {
   assertEq(entry.status, 201, 'balanced manual entry posts')
 
   assertEq(await status(`/journal-entries/${entry.id}/reverse`, { method: 'POST', body: {}, as: 'acct' }),
-    403, 'an invoicing user may NOT reverse an entry')
+    403, 'an accountant may NOT reverse an entry')
 
   const rev = await api(`/journal-entries/${entry.id}/reverse`, {
     method: 'POST', body: { reason: 'Keyed in error' },
@@ -242,12 +241,10 @@ async function main() {
 
   // ─────────── permissions ───────────
   section('6. Permissions')
-  assertEq(await status('/invoices', { as: 'viewer', method: 'POST', body: {} }), 403,
-    'viewer cannot create an invoice')
-  assertEq(await status('/vouchers', { as: 'viewer', method: 'POST', body: {} }), 403,
-    'viewer cannot post a voucher')
-  assertEq(await status('/reports/balance-sheet', { as: 'viewer' }), 200,
-    'viewer CAN read reports')
+  assertEq(await status('/users', { as: 'acct' }), 403,
+    'accountant cannot manage users')
+  assertEq(await status('/reports/balance-sheet', { as: 'acct' }), 200,
+    'accountant CAN read reports')
   assertEq(await status('/reports/balance-sheet', { as: 'portal' }), 403,
     'portal user cannot read reports')
   assertEq(await status('/invoices', { as: 'portal' }), 403,
@@ -255,18 +252,18 @@ async function main() {
 
   // ─────────── identities still hold ───────────
   section('7. Accounting identities after all that activity')
-  const tb = await api('/reports/trial-balance', { as: 'viewer' })
+  const tb = await api('/reports/trial-balance', { as: 'acct' })
   assert(tb.balanced === true, `trial balance still balanced (Σ ${tb.totals.debit})`)
 
-  const bs = await api('/reports/balance-sheet', { as: 'viewer' })
+  const bs = await api('/reports/balance-sheet', { as: 'acct' })
   assert(bs.balanced === true,
     `balance sheet balanced — assets ${bs.totals.assets} = L+E ${bs.totals.liabilitiesAndEquity}`)
 
-  const val = await api('/reports/inventory-valuation', { as: 'viewer' })
+  const val = await api('/reports/inventory-valuation', { as: 'acct' })
   assert(val.tiesOut === true,
     `inventory valuation ${val.totals.value} ties to control account ${val.totals.ledgerBalance}`)
 
-  const csv = await api('/reports/trial-balance?format=csv', { as: 'viewer', raw: true })
+  const csv = await api('/reports/trial-balance?format=csv', { as: 'acct', raw: true })
   assert(csv.text.startsWith('Code,Account,Type,Debit,Credit'), 'CSV export returns a proper header')
 
   console.log(`\n\x1b[1m${'─'.repeat(58)}\x1b[0m`)

@@ -11,7 +11,7 @@ export default function RootRedirect() {
   useEffect(() => {
     if (loading) return
     if (!user) router.replace('/login')
-    else if (user.role === 'contact') router.replace('/portal')
+    else if (user.role === 'user') router.replace('/portal')
     else router.replace('/dashboard')
   }, [user, loading, router])
 

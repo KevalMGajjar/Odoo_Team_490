@@ -5,7 +5,7 @@ const COOKIE_NAME = process.env.COOKIE_NAME || 'uf_token'
 
 export const signToken = (user) =>
   jwt.sign(
-    { id: user.id, email: user.email, role: user.role, contactId: user.contactId ?? null },
+    { id: user.id, loginId: user.loginId, email: user.email, role: user.role, contactId: user.contactId ?? null },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
   )
@@ -35,9 +35,9 @@ export const verifyJWT = (req, res, next) => {
 
 /**
  * Role gate. Written so the route line reads as documentation:
- *   router.post('/', verifyJWT, requireRole(['admin', 'invoicing_user']), handler)
+ *   router.post('/', verifyJWT, requireRole(['admin', 'accountant']), handler)
  *
- * Per the PS: admin creates/modifies/archives; invoicing_user creates only.
+ * admin creates/modifies/archives; accountant creates only; user is portal-only.
  */
 export const requireRole = (allowedRoles = []) => (req, res, next) => {
   if (!req.user) return next(unauthorized())
@@ -48,25 +48,25 @@ export const requireRole = (allowedRoles = []) => (req, res, next) => {
 }
 
 /** Convenience gates matching the role matrix in PLAN.md §8. */
-export const canCreate = requireRole(['admin', 'invoicing_user'])
+export const canCreate = requireRole(['admin', 'accountant'])
 export const adminOnly = requireRole(['admin'])
 
 /**
  * Row-level scoping for portal users.
  *
- * A contact must only ever see their OWN documents. This is enforced in the
- * WHERE clause, not by hiding UI — fetching another contact's invoice by id
- * must return 403/404, never 200.
+ * A portal user must only ever see their OWN documents. This is enforced in
+ * the WHERE clause, not by hiding UI — fetching another contact's invoice by
+ * id must return 403/404, never 200.
  */
 export const scopeToPartner = (req, field = 'customerId') => {
-  if (req.user?.role !== 'contact') return {}
+  if (req.user?.role !== 'user') return {}
   if (!req.user.contactId) return { [field]: '__no_contact_linked__' }
   return { [field]: req.user.contactId }
 }
 
 /** Throw if a fetched record isn't visible to this portal user. */
 export const assertOwnership = (req, record, field = 'customerId') => {
-  if (req.user?.role !== 'contact') return
+  if (req.user?.role !== 'user') return
   if (!record || record[field] !== req.user.contactId) {
     throw forbidden('You do not have access to this document')
   }

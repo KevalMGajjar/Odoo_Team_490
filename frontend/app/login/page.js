@@ -6,39 +6,35 @@ import Link from 'next/link'
 import { useAuth, ApiError } from '@/lib/auth'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
+import { useGuardedAction } from '@/lib/useGuardedAction'
 
 /**
  * Quick-login buttons are demo-day insurance (IDEAS.md §5.5) — never fumble
  * credentials on stage. Flat brand fill, no gradient, 3px radius throughout.
  */
 const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@urbanfurniture.com', tone: 'bg-brand' },
-  { label: 'Invoicing User', email: 'accountant@urbanfurniture.com', tone: 'bg-secondary' },
-  { label: 'Viewer (read-only)', email: 'viewer@urbanfurniture.com', tone: 'bg-state-info' },
-  { label: 'Contact Portal', email: 'nimesh@example.com', tone: 'bg-state-paid' },
+  { label: 'Admin', loginId: 'admin01', tone: 'bg-brand' },
+  { label: 'Accountant', loginId: 'accountant1', tone: 'bg-secondary' },
+  { label: 'Portal User', loginId: 'nimesh01', tone: 'bg-state-paid' },
 ]
 
 export default function LoginPage() {
   const { login } = useAuth()
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('demo123')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
 
-  const doLogin = async (e, overrideEmail) => {
+  const [doLogin, loading] = useGuardedAction(async (e, overrideLoginId) => {
     e?.preventDefault()
     setError('')
-    setLoading(true)
     try {
-      const user = await login(overrideEmail ?? email, password)
-      router.replace(user.role === 'contact' ? '/portal' : '/dashboard')
+      const user = await login(overrideLoginId ?? loginId, password)
+      router.replace(user.role === 'user' ? '/portal' : '/dashboard')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong')
-    } finally {
-      setLoading(false)
     }
-  }
+  })
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-bg px-4">
@@ -52,12 +48,11 @@ export default function LoginPage() {
           <h1 className="mb-1 text-md font-semibold text-ink">Sign in</h1>
           <p className="mb-5 text-xs text-ink-muted">Accounting system — double-entry ledger, perpetual inventory.</p>
 
-          <FormField label="Email" className="mb-3">
+          <FormField label="Login ID" className="mb-3">
             <TextInput
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@urbanfurniture.com"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
+              placeholder="e.g. accountant1"
               autoFocus
               required
             />
@@ -80,12 +75,12 @@ export default function LoginPage() {
 
           <div className="mt-5 border-t border-line pt-4">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">Quick sign-in (demo)</p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               {DEMO_ACCOUNTS.map((acc) => (
                 <button
-                  key={acc.email}
+                  key={acc.loginId}
                   type="button"
-                  onClick={(e) => { setEmail(acc.email); doLogin(e, acc.email) }}
+                  onClick={(e) => { setLoginId(acc.loginId); doLogin(e, acc.loginId) }}
                   disabled={loading}
                   className="flex items-center gap-1.5 rounded-sm border border-line px-2 py-1.5 text-left text-xs text-ink hover:bg-surface-hover disabled:opacity-50"
                 >
@@ -99,6 +94,8 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-3 text-center text-xs text-ink-faint">
+          <Link href="/signup" className="text-secondary hover:underline">Create an account</Link>
+          {' · '}
           Forgot your password? <Link href="/forgot-password" className="text-secondary hover:underline">Reset it</Link>
         </p>
       </div>

@@ -35,7 +35,7 @@ const defaultWindow = () => {
 }
 
 const internalOnly = (req, res, next) =>
-  req.user?.role === 'contact'
+  req.user?.role === 'user'
     ? res.status(403).json({ message: 'Reports are not available to portal users' })
     : next()
 

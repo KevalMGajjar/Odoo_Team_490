@@ -25,12 +25,10 @@ datasource db {
 
 enum Role {
   admin
-  invoicing_user
-  /// Read-only internal access. Intended for the companion view-only app:
-  /// sees everything an invoicing user sees, but is in no write role, so a
-  /// leaked token cannot mutate the ledger.
-  viewer
-  contact
+  /// Masters, transactions, reports — everything but user management.
+  accountant
+  /// Portal-only. Tied to a Contact; sees and pays only their own documents.
+  user
 }
 
 enum Status {
@@ -148,6 +146,10 @@ enum StockMoveType {
 model User {
   id              String    @id @default(uuid())
   name            String
+  /// The login credential — 6-12 alphanumeric characters. Distinct from
+  /// email so a user can change their contact email without touching how
+  /// they sign in.
+  loginId         String    @unique @map("login_id")
   email           String    @unique
   password        String
   role            Role

@@ -9,7 +9,7 @@ import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useTheme } from '@/lib/useTheme'
 import { CommandPalette } from './CommandPalette'
 
-const ROLE_LABEL = { admin: 'Admin', invoicing_user: 'Invoicing User', viewer: 'Viewer', contact: 'Portal' }
+const ROLE_LABEL = { admin: 'Admin', accountant: 'Accountant', user: 'Portal User' }
 
 /** 44px, per UI.md §3 — search, connectivity, dark toggle, user menu. */
 export function Topbar({ onMenuClick }) {
