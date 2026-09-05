@@ -9,11 +9,11 @@ import { toDateOnly } from './ledger.js'
  * trustworthy and what makes drill-down possible from any figure.
  *
  * Natural balances:
- *   asset, expense    → debit − credit
- *   liability, income, capital → credit − debit
+ *   asset, bank, cash, expense, other_expense → debit − credit
+ *   liability, income, capital                → credit − debit
  */
 
-const NATURAL_DEBIT = new Set(['asset', 'expense'])
+const NATURAL_DEBIT = new Set(['asset', 'bank', 'cash', 'expense', 'other_expense'])
 
 const naturalBalance = (type, debit, credit) =>
   NATURAL_DEBIT.has(type) ? money(D(debit).minus(credit)) : money(D(credit).minus(debit))
@@ -90,10 +90,12 @@ export async function profitAndLoss(tx, { from, to }) {
 
   const income = all.filter((r) => r.type === 'income' && !r.balance.isZero())
   const expense = all.filter((r) => r.type === 'expense' && !r.balance.isZero())
+  const otherExpense = all.filter((r) => r.type === 'other_expense' && !r.balance.isZero())
 
   const totalIncome = money(income.reduce((a, r) => a.plus(r.balance), D(0)))
   const totalExpense = money(expense.reduce((a, r) => a.plus(r.balance), D(0)))
-  const netProfit = money(totalIncome.minus(totalExpense))
+  const totalOtherExpense = money(otherExpense.reduce((a, r) => a.plus(r.balance), D(0)))
+  const netProfit = money(totalIncome.minus(totalExpense).minus(totalOtherExpense))
 
   // Cost of goods sold is broken out so gross margin is visible — this is only
   // meaningful because COGS is posted at delivery from real moving-average cost.
@@ -107,9 +109,11 @@ export async function profitAndLoss(tx, { from, to }) {
     to: toDateOnly(to),
     income,
     expense,
+    otherExpense,
     totals: {
       income: totalIncome,
       expense: totalExpense,
+      otherExpense: totalOtherExpense,
       cogs,
       grossProfit,
       grossMarginPct: totalIncome.isZero()
@@ -134,15 +138,18 @@ export async function balanceSheet(tx, { asOf = new Date() } = {}) {
   const sum = (rows) => money(rows.reduce((a, r) => a.plus(r.balance), D(0)))
 
   const assets = pick('asset')
+  const bank = pick('bank')
+  const cash = pick('cash')
   const liabilities = pick('liability')
   const capital = pick('capital')
   const income = pick('income')
   const expense = pick('expense')
+  const otherExpense = pick('other_expense')
 
-  const totalAssets = sum(assets)
+  const totalAssets = money(sum(assets).plus(sum(bank)).plus(sum(cash)))
   const totalLiabilities = sum(liabilities)
   const totalCapital = sum(capital)
-  const currentEarnings = money(sum(income).minus(sum(expense)))
+  const currentEarnings = money(sum(income).minus(sum(expense)).minus(sum(otherExpense)))
 
   const equityTotal = money(totalCapital.plus(currentEarnings))
   const rightSide = money(totalLiabilities.plus(equityTotal))
@@ -151,6 +158,8 @@ export async function balanceSheet(tx, { asOf = new Date() } = {}) {
   return {
     asOf: toDateOnly(asOf),
     assets,
+    bank,
+    cash,
     liabilities,
     capital,
     currentEarnings,

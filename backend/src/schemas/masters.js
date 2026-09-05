@@ -84,19 +84,20 @@ export const productCategoryCreate = z.object({ name: name(2, 60) })
 export const productCategoryUpdate = productCategoryCreate.partial()
 
 // ────────────────────── chart of accounts ──────────────────────
+const ACCOUNT_TYPES = ['asset', 'liability', 'bank', 'cash', 'capital', 'income', 'expense', 'other_expense']
+
 const accountBase = z.object({
   code: z.string().trim().regex(/^[A-Za-z0-9.\-]{1,12}$/, 'Code may contain letters, digits, dots and dashes only'),
   name: name(2, 120),
-  type: z.enum(['asset', 'liability', 'income', 'expense', 'capital'], {
-    errorMap: () => ({ message: 'Type must be Asset, Liability, Income, Expense or Capital' }),
+  type: z.enum(ACCOUNT_TYPES, {
+    errorMap: () => ({ message: 'Type must be Asset, Liability, Bank, Cash, Capital, Income, Expenses or Other Expenses' }),
   }),
-  isCashBank: z.coerce.boolean().default(false),
+  // isCashBank is never accepted from the client — it's derived server-side
+  // from `type` (see routes/masters.js) so a Bank/Cash-typed account is
+  // always, automatically selectable on the voucher screens.
 })
 
-export const accountCreate = accountBase.refine(
-  (d) => !d.isCashBank || d.type === 'asset',
-  { message: 'Only an asset account can be marked as cash or bank', path: ['isCashBank'] },
-)
+export const accountCreate = accountBase
 export const accountUpdate = accountBase.partial()
 
 // ─────────────────────────── journals ───────────────────────────

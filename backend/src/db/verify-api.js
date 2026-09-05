@@ -168,7 +168,7 @@ async function main() {
   section('4. Voucher entry')
   const cb = await api('/vouchers/cash-bank-accounts?voucherType=BReceipt')
   assert(cb.accounts.length > 0, `cash/bank filter returns only flagged accounts (${cb.accounts.length})`)
-  assert(cb.accounts.every((a) => a.type === 'asset'), 'all are asset accounts')
+  assert(cb.accounts.every((a) => ['bank', 'cash'].includes(a.type)), 'all are bank or cash accounts')
 
   const peek = await api('/vouchers/next-number?voucherType=BReceipt')
   const expectedNo = peek.voucherNo

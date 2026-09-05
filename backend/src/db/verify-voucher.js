@@ -45,8 +45,8 @@ async function main() {
 
       const abcParty = await acc('V1101', 'Abc Party', 'asset')
       const kishan = await acc('V1102', 'Kishan Auto Parts', 'asset')
-      const bank = await acc('V1010', 'Bank Account', 'asset', true)
-      const cash = await acc('V1000', 'Cash Account', 'asset', true)
+      const bank = await acc('V1010', 'Bank Account', 'bank', true)
+      const cash = await acc('V1000', 'Cash Account', 'cash', true)
       const rent = await acc('V5100', 'Rent Expense', 'expense')
       const creditors = await acc('V2000', 'Creditors', 'liability')
 

@@ -10,10 +10,13 @@ import { useApiList } from '@/lib/useApi'
 import { useAuth, canWrite } from '@/lib/auth'
 
 const TYPE_TONE = {
-  asset: 'text-secondary', liability: 'text-ledger-credit', income: 'text-state-paid',
-  expense: 'text-state-overdue', capital: 'text-brand',
+  asset: 'text-secondary', liability: 'text-ledger-credit', bank: 'text-secondary', cash: 'text-secondary',
+  income: 'text-state-paid', expense: 'text-state-overdue', other_expense: 'text-state-overdue', capital: 'text-brand',
 }
-const TYPE_LABEL = { asset: 'Asset', liability: 'Liability', income: 'Income', expense: 'Expense', capital: 'Capital' }
+const TYPE_LABEL = {
+  asset: 'Asset', liability: 'Liability', bank: 'Bank', cash: 'Cash',
+  capital: 'Capital', income: 'Income', expense: 'Expenses', other_expense: 'Other Expenses',
+}
 
 export default function AccountsListPage() {
   const router = useRouter()

@@ -259,7 +259,7 @@ in transit. Format for display; never recompute a total the server did not send.
             id: { type: 'string', format: 'uuid', readOnly: true },
             code: { type: 'string', example: '1100', description: 'Drives report ordering' },
             name: { type: 'string', example: 'Debtors (Accounts Receivable)' },
-            type: { type: 'string', enum: ['asset', 'liability', 'income', 'expense', 'capital'] },
+            type: { type: 'string', enum: ['asset', 'liability', 'bank', 'cash', 'capital', 'income', 'expense', 'other_expense'] },
             isCashBank: { type: 'boolean', description: 'Selectable on the bank/cash side of a receipt or payment voucher' },
             status: { type: 'string', enum: ['active', 'archived'], readOnly: true },
           },

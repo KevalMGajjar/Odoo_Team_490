@@ -13,6 +13,8 @@ const cols = [
   { key: 'balance', header: 'Balance', align: 'right', render: (r) => formatMoney(r.balance) },
 ]
 
+const sumBalances = (rows) => (rows ?? []).reduce((a, r) => a + Number(r.balance), 0)
+
 export default function BalanceSheetPage() {
   const [asOf, setAsOf] = useState(toDateInput(new Date()))
   const { data, loading } = useApiGet('/reports/balance-sheet', { asOf })
@@ -30,14 +32,38 @@ export default function BalanceSheetPage() {
     >
       {data && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div>
-            <p className="text-md font-semibold text-ink mb-2">Assets</p>
-            <ReportTable
-              columns={cols}
-              rows={data.assets}
-              emptyText="No asset balances."
-              footer={<><td className="px-3 py-2">Total Assets</td><td className="px-3 py-2 text-right tabular">{formatMoney(data.totals.assets)}</td></>}
-            />
+          <div className="space-y-4">
+            <div>
+              <p className="text-md font-semibold text-ink mb-2">Assets</p>
+              <ReportTable
+                columns={cols}
+                rows={data.assets}
+                emptyText="No asset balances."
+                footer={<><td className="px-3 py-2">Subtotal</td><td className="px-3 py-2 text-right tabular">{formatMoney(sumBalances(data.assets))}</td></>}
+              />
+            </div>
+            <div>
+              <p className="text-md font-semibold text-ink mb-2">Bank</p>
+              <ReportTable
+                columns={cols}
+                rows={data.bank}
+                emptyText="No bank balances."
+                footer={<><td className="px-3 py-2">Subtotal</td><td className="px-3 py-2 text-right tabular">{formatMoney(sumBalances(data.bank))}</td></>}
+              />
+            </div>
+            <div>
+              <p className="text-md font-semibold text-ink mb-2">Cash</p>
+              <ReportTable
+                columns={cols}
+                rows={data.cash}
+                emptyText="No cash balances."
+                footer={<><td className="px-3 py-2">Subtotal</td><td className="px-3 py-2 text-right tabular">{formatMoney(sumBalances(data.cash))}</td></>}
+              />
+            </div>
+            <div className="flex justify-between rounded border border-line bg-surface-subtle px-3 py-2 text-sm font-semibold text-ink">
+              <span>Total Assets</span>
+              <span className="tabular">{formatMoney(data.totals.assets)}</span>
+            </div>
           </div>
 
           <div className="space-y-4">

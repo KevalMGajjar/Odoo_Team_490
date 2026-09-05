@@ -26,9 +26,14 @@ function mapAccountType(account) {
   switch (account.type) {
     case 'asset': return 'asset_current'
     case 'liability': return 'liability_current'
+    // Odoo has no separate bank-vs-cash account_type — both are asset_cash;
+    // the bank/cash distinction lives at the journal level in Odoo, not here.
+    case 'bank': return 'asset_cash'
+    case 'cash': return 'asset_cash'
     case 'capital': return 'equity'
     case 'income': return 'income'
     case 'expense': return 'expense'
+    case 'other_expense': return 'expense'
     default: return 'asset_current'
   }
 }

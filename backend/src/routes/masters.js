@@ -90,6 +90,8 @@ router.use('/products', crudRouter({
 }))
 
 // ────────────────────── chart of accounts ──────────────────────
+const CASH_BANK_TYPES = ['bank', 'cash']
+
 router.use('/accounts', crudRouter({
   model: 'chartOfAccount',
   label: 'Account',
@@ -103,6 +105,13 @@ router.use('/accounts', crudRouter({
     updated: AUDIT_ACTIONS.account_updated,
     archived: AUDIT_ACTIONS.account_archived,
   },
+  // A Bank or Cash typed account is always the flag the voucher screens
+  // filter on — never a separate manual choice.
+  beforeCreate: async (tx, data) => ({ ...data, isCashBank: CASH_BANK_TYPES.includes(data.type) }),
+  beforeUpdate: async (tx, data, existing) => ({
+    ...data,
+    isCashBank: CASH_BANK_TYPES.includes(data.type ?? existing.type),
+  }),
   beforeArchive: guardInUse([
     { model: 'journalItem', field: 'accountId', label: 'ledger entries' },
   ]),

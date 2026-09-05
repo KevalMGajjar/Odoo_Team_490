@@ -87,6 +87,7 @@ router.get('/profit-loss', verifyJWT, internalOnly, async (req, res, next) => {
       const rows = [
         ...report.income.map((r) => ({ ...r, section: 'Income' })),
         ...report.expense.map((r) => ({ ...r, section: 'Expense' })),
+        ...report.otherExpense.map((r) => ({ ...r, section: 'Other Expense' })),
       ]
       return sendCsv(res, 'profit-and-loss.csv', [
         { header: 'Section', value: (r) => r.section },
@@ -108,6 +109,8 @@ router.get('/balance-sheet', verifyJWT, internalOnly, async (req, res, next) => 
     if (req.query.format === 'csv') {
       const rows = [
         ...report.assets.map((r) => ({ ...r, section: 'Assets' })),
+        ...report.bank.map((r) => ({ ...r, section: 'Bank' })),
+        ...report.cash.map((r) => ({ ...r, section: 'Cash' })),
         ...report.liabilities.map((r) => ({ ...r, section: 'Liabilities' })),
         ...report.capital.map((r) => ({ ...r, section: 'Capital' })),
         { section: 'Capital', code: '', name: 'Current Period Earnings', balance: report.currentEarnings },

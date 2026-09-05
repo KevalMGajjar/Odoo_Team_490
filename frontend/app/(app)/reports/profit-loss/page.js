@@ -61,12 +61,21 @@ export default function ProfitLossPage() {
             />
           </div>
           <div>
-            <p className="text-md font-semibold text-ink mb-2">Expense</p>
+            <p className="text-md font-semibold text-ink mb-2">Expenses</p>
             <ReportTable
               columns={cols} rows={data.expense} emptyText="No expense posted for this period."
-              footer={<><td className="px-3 py-2">Total Expense</td><td className="px-3 py-2 text-right tabular">{formatMoney(data.totals.expense)}</td></>}
+              footer={<><td className="px-3 py-2">Total Expenses</td><td className="px-3 py-2 text-right tabular">{formatMoney(data.totals.expense)}</td></>}
             />
           </div>
+          {data.otherExpense?.length > 0 && (
+            <div>
+              <p className="text-md font-semibold text-ink mb-2">Other Expenses</p>
+              <ReportTable
+                columns={cols} rows={data.otherExpense} emptyText="No other expense posted for this period."
+                footer={<><td className="px-3 py-2">Total Other Expenses</td><td className="px-3 py-2 text-right tabular">{formatMoney(data.totals.otherExpense)}</td></>}
+              />
+            </div>
+          )}
         </div>
       )}
     </ReportShell>

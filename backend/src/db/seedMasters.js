@@ -15,9 +15,9 @@ export const BASE_CURRENCY = 'INR'
 // `cb` marks real cash/bank ledgers — the receipt/payment voucher screens
 // filter the bank side of the entry to these.
 export const ACCOUNTS = [
-  { code: '1000', name: 'Cash',                     type: 'asset',     cb: true },
-  { code: '1010', name: 'Bank — HDFC Current',      type: 'asset',     cb: true },
-  { code: '1011', name: 'Bank — ICICI Savings',     type: 'asset',     cb: true },
+  { code: '1000', name: 'Cash',                     type: 'cash' },
+  { code: '1010', name: 'Bank — HDFC Current',      type: 'bank' },
+  { code: '1011', name: 'Bank — ICICI Savings',     type: 'bank' },
   { code: '1100', name: 'Debtors (Accounts Receivable)', type: 'asset' },
   { code: '1200', name: 'Input GST (Receivable)',   type: 'asset' },
   { code: '1300', name: 'Inventory',                type: 'asset' },
@@ -33,8 +33,8 @@ export const ACCOUNTS = [
   { code: '5100', name: 'Rent Expense',             type: 'expense' },
   { code: '5200', name: 'Salary Expense',           type: 'expense' },
   { code: '5300', name: 'Freight & Delivery',       type: 'expense' },
-  { code: '5400', name: 'Foreign Exchange Loss',    type: 'expense' },
-  { code: '5500', name: 'Inventory Adjustment',     type: 'expense' },
+  { code: '5400', name: 'Foreign Exchange Loss',    type: 'other_expense' },
+  { code: '5500', name: 'Inventory Adjustment',     type: 'other_expense' },
 ]
 
 export const JOURNALS = [
@@ -127,7 +127,7 @@ export async function seedMasters(tx, { log = () => {} } = {}) {
   const accounts = {}
   for (const a of ACCOUNTS) {
     accounts[a.code] = await tx.chartOfAccount.create({
-      data: { code: a.code, name: a.name, type: a.type, isCashBank: Boolean(a.cb) },
+      data: { code: a.code, name: a.name, type: a.type, isCashBank: ['bank', 'cash'].includes(a.type) },
     })
   }
   log(`  accounts          ${ACCOUNTS.length}`)

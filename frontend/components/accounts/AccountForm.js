@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useAuth, canModify } from '@/lib/auth'
 import { useGuardedAction } from '@/lib/useGuardedAction'
 
-const emptyForm = { code: '', name: '', type: 'expense', isCashBank: false }
+const emptyForm = { code: '', name: '', type: 'expense' }
 
 export function AccountForm({ account }) {
   const isEdit = Boolean(account)
@@ -22,15 +22,12 @@ export function AccountForm({ account }) {
   const readOnly = isEdit && !canModify(user?.role)
 
   const [form, setForm] = useState(() =>
-    isEdit ? { code: account.code, name: account.name, type: account.type, isCashBank: account.isCashBank } : emptyForm,
+    isEdit ? { code: account.code, name: account.name, type: account.type } : emptyForm,
   )
   const [errors, setErrors] = useState({})
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const set = (field) => (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-    setForm((f) => ({ ...f, [field]: value }))
-  }
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const [save, saving] = useGuardedAction(async (e) => {
     e.preventDefault()
@@ -90,9 +87,12 @@ export function AccountForm({ account }) {
               <Select value={form.type} onChange={set('type')} disabled={readOnly}>
                 <option value="asset">Asset</option>
                 <option value="liability">Liability</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
+                <option value="bank">Bank</option>
+                <option value="cash">Cash</option>
                 <option value="capital">Capital</option>
+                <option value="income">Income</option>
+                <option value="expense">Expenses</option>
+                <option value="other_expense">Other Expenses</option>
               </Select>
             </FormField>
 
@@ -100,19 +100,11 @@ export function AccountForm({ account }) {
               <TextInput value={form.name} onChange={set('name')} disabled={readOnly} required />
             </FormField>
 
-            <FormField error={errors.isCashBank} className="sm:col-span-2">
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={form.isCashBank}
-                  onChange={set('isCashBank')}
-                  disabled={readOnly || form.type !== 'asset'}
-                  className="h-3.5 w-3.5 rounded-sm accent-brand"
-                />
-                Cash or bank account
-                <span className="text-xs text-ink-faint">— selectable on receipt/payment voucher screens</span>
-              </label>
-            </FormField>
+            {['bank', 'cash'].includes(form.type) && (
+              <p className="text-xs text-ink-faint sm:col-span-2">
+                Automatically selectable on the receipt/payment voucher screens.
+              </p>
+            )}
           </FormGrid>
         </FormSection>
 

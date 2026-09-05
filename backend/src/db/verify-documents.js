@@ -118,10 +118,10 @@ async function main() {
       // is what postPayment() actually reads, so these need no code and no
       // collision with the real BNK/CSH journals at all
       const bankAcc = await tx.chartOfAccount.create({
-        data: { code: `D-BNK-${RUN}`, name: 'Doc Test Bank', type: 'asset', isCashBank: true },
+        data: { code: `D-BNK-${RUN}`, name: 'Doc Test Bank', type: 'bank', isCashBank: true },
       })
       const cashAcc = await tx.chartOfAccount.create({
-        data: { code: `D-CSH-${RUN}`, name: 'Doc Test Cash', type: 'asset', isCashBank: true },
+        data: { code: `D-CSH-${RUN}`, name: 'Doc Test Cash', type: 'cash', isCashBank: true },
       })
       const bankJournal = await tx.journal.create({
         data: { code: `DBNK${RUN}`, name: 'Doc Test Bank Journal', type: 'bank', defaultDebitId: bankAcc.id },

@@ -56,9 +56,14 @@ enum CostMethod {
 enum AccountType {
   asset
   liability
+  bank
+  cash
+  capital
   income
   expense
-  capital
+  /// Non-operating expense (e.g. realised FX loss, inventory write-off) —
+  /// reported as its own P&L section, separate from operating Expenses.
+  other_expense
 }
 
 enum JournalType {
