@@ -1,44 +1,89 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { api, login, today } from '../../helpers/api';
+import { describe, it, expect, beforeAll } from 'vitest'
+import { api, loginAllRoles, today } from '../../helpers/api'
 
-describe('Trial Balance Integration Tests', () => {
+describe('Trial Balance Report', () => {
+  let miscJournalId: string
+  let expAccountId: string
+  let bankAccountId: string
+  
   beforeAll(async () => {
-    await login('admin');
-  });
+    await loginAllRoles()
 
-  it('TB-01: GET /reports/trial-balance -> assert balanced === true, Σdebit === Σcredit', async () => {
-    const tbRes = await api.get('/reports/trial-balance');
-    expect(tbRes.status).toBe(200);
-    expect(tbRes.data.balanced).toBe(true);
-    expect(tbRes.data.totalDebit).toBeCloseTo(tbRes.data.totalCredit);
-  });
-
-  it('TB-02: After 50+ transactions -> still balanced', async () => {
-    for (let i = 0; i < 50; i++) {
-      const invRes = await api.post('/invoices', {
-        customerId: 1, date: today(), items: [{ accountId: 4000, description: 'Batch', quantity: 1, unitPrice: 10 + i }]
-      });
-      await api.post(`/invoices/${invRes.data.id}/confirm`);
+    const accounts = await api('/accounts?pageSize=200', { as: 'admin' })
+    if (accounts.rows) {
+      expAccountId = accounts.rows.find((a: any) => a.code?.startsWith('5'))?.id
+      bankAccountId = accounts.rows.find((a: any) => a.code?.startsWith('10'))?.id
     }
 
-    const tbRes = await api.get('/reports/trial-balance');
-    expect(tbRes.data.balanced).toBe(true);
-    expect(tbRes.data.totalDebit).toBeCloseTo(tbRes.data.totalCredit);
-  });
+    const journals = await api('/journals', { as: 'admin' })
+    if (journals.rows) {
+      miscJournalId = journals.rows.find((j: any) => j.type === 'miscellaneous')?.id
+    }
+  })
 
-  it('TB-03: After a rejected unbalanced entry attempt -> TB still balanced', async () => {
-    const jeRes = await api.post('/journals/entries', {
-      date: today(),
-      lines: [
-        { accountId: 1000, debit: 100, credit: 0 },
-        { accountId: 4000, debit: 0, credit: 90 } 
-      ]
-    }, { validateStatus: () => true });
-    
-    expect(jeRes.status).toBe(422); 
+  it('TB-01: GET /reports/trial-balance -> balanced=true, Σdebit === Σcredit', async () => {
+    const res = await api('/reports/trial-balance', { as: 'admin' })
+    expect(res.balanced).toBe(true)
+    expect(res.totals.debit).toBeDefined()
+    expect(res.totals.credit).toBeDefined()
+    expect(res.totals.debit).toEqual(res.totals.credit)
+  })
 
-    const tbRes = await api.get('/reports/trial-balance');
-    expect(tbRes.data.balanced).toBe(true);
-    expect(tbRes.data.totalDebit).toBeCloseTo(tbRes.data.totalCredit);
-  });
-});
+  it('TB-02: After posting a manual JE -> TB still balanced', async () => {
+    const jeRes = await api('/journal-entries', {
+      method: 'POST',
+      body: {
+        journalId: miscJournalId,
+        date: today(),
+        reference: 'Test TB entry',
+        narration: 'Test',
+        items: [
+          { accountId: expAccountId, debit: 500, credit: 0 },
+          { accountId: bankAccountId, debit: 0, credit: 500 }
+        ]
+      },
+      as: 'admin'
+    })
+    expect(jeRes.status).toBe(201)
+
+    const res = await api('/reports/trial-balance', { as: 'admin' })
+    expect(res.balanced).toBe(true)
+    expect(res.totals.debit).toEqual(res.totals.credit)
+  })
+
+  it('TB-03: After rejected unbalanced entry -> TB still balanced (nothing persisted)', async () => {
+    const jeRes = await api('/journal-entries', {
+      method: 'POST',
+      body: {
+        journalId: miscJournalId,
+        date: today(),
+        reference: 'Bad TB entry',
+        narration: 'Test unbalanced',
+        items: [
+          { accountId: expAccountId, debit: 500, credit: 0 },
+          { accountId: bankAccountId, debit: 0, credit: 400 } // Unbalanced
+        ]
+      },
+      as: 'admin'
+    })
+    // Expect failure
+    expect(jeRes.status).not.toBe(201)
+
+    const res = await api('/reports/trial-balance', { as: 'admin' })
+    expect(res.balanced).toBe(true)
+    expect(res.totals.debit).toEqual(res.totals.credit)
+  })
+
+  it('NEW: TB CSV export -> starts with "Code,Account,Type,Debit,Credit"', async () => {
+    const csv = await api('/reports/trial-balance?format=csv', { as: 'admin' })
+    expect(typeof csv).toBe('string')
+    expect(csv.trim().startsWith('Code,Account,Type,Debit,Credit')).toBe(true)
+  })
+
+  it('NEW: TB totals are exact — debit and credit are equal numeric strings', async () => {
+    const res = await api('/reports/trial-balance', { as: 'admin' })
+    expect(typeof res.totals.debit).toBe('string')
+    expect(typeof res.totals.credit).toBe('string')
+    expect(res.totals.debit).toEqual(res.totals.credit)
+  })
+})

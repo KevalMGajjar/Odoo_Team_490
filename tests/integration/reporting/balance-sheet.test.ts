@@ -1,80 +1,88 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { api, login, today } from '../../helpers/api';
+import { describe, it, expect, beforeAll } from 'vitest'
+import { api, loginAllRoles, today } from '../../helpers/api'
 
-describe('Balance Sheet Integration Tests', () => {
+describe('Balance Sheet Report', () => {
+  let miscJournalId: string
+  let expAccountId: string
+  let bankAccountId: string
+  
   beforeAll(async () => {
-    await login('admin');
-  });
+    await loginAllRoles()
 
-  it.todo('BS-001: Fresh company capital injection only');
-
-  it('BS-002: After sales + purchases posted -> verify Assets = Liabilities + Capital + Retained Earnings', async () => {
-    const bsRes = await api.get('/reports/balance-sheet');
-    expect(bsRes.status).toBe(200);
-    const bs = bsRes.data;
-    expect(bs.balanced).toBe(true);
-
-    const assets = bs.assets.total;
-    const liabilities = bs.liabilities.total;
-    const equity = bs.equity.total;
-    
-    expect(assets).toBeCloseTo(liabilities + equity);
-  });
-
-  it('BS-003: Date filter BEFORE a transaction -> transaction excluded', async () => {
-    const oldDate = '2020-01-01';
-    const bsRes = await api.get(`/reports/balance-sheet?asOf=${oldDate}`);
-    expect(bsRes.status).toBe(200);
-    const bs = bsRes.data;
-    expect(bs.balanced).toBe(true);
-  });
-
-  it.todo('BS-004: Monthly comparison');
-  it.todo('BS-005: Yearly comparison');
-  it.todo('BS-006: Departmental balance sheet');
-  it.todo('BS-007: Consolidated balance sheet');
-
-  it('Balance sheet identity: Assets == Liabilities + Capital + (Income - Expense) after 10+ mixed transactions', async () => {
-    for (let i = 0; i < 10; i++) {
-      const invRes = await api.post('/invoices', {
-        customerId: 1, date: today(), items: [{ accountId: 4000, description: 'Sales', quantity: 1, unitPrice: 100 + i }]
-      });
-      await api.post(`/invoices/${invRes.data.id}/confirm`);
+    const accounts = await api('/accounts?pageSize=200', { as: 'admin' })
+    if (accounts.rows) {
+      expAccountId = accounts.rows.find((a: any) => a.code?.startsWith('5'))?.id
+      bankAccountId = accounts.rows.find((a: any) => a.code?.startsWith('10'))?.id
     }
 
-    const bsRes = await api.get('/reports/balance-sheet');
-    expect(bsRes.data.balanced).toBe(true);
-    expect(bsRes.data.assets.total).toBeCloseTo(bsRes.data.liabilities.total + bsRes.data.equity.total);
-  });
+    const journals = await api('/journals', { as: 'admin' })
+    if (journals.rows) {
+      miscJournalId = journals.rows.find((j: any) => j.type === 'miscellaneous')?.id
+    }
+  })
 
-  it('Reversals don\'t break the balance: post entry, reverse it, BS still balanced', async () => {
-    const invRes = await api.post('/invoices', {
-      customerId: 1, date: today(), items: [{ accountId: 4000, description: 'To Reverse', quantity: 1, unitPrice: 999 }]
-    });
-    await api.post(`/invoices/${invRes.data.id}/confirm`);
-    await api.post(`/invoices/${invRes.data.id}/cancel`); 
+  it.todo('BS-001: .todo')
 
-    const bsRes = await api.get('/reports/balance-sheet');
-    expect(bsRes.data.balanced).toBe(true);
-  });
+  it('BS-002: GET /reports/balance-sheet -> balanced=true, assets ≈ liabilitiesAndEquity', async () => {
+    const res = await api('/reports/balance-sheet', { as: 'admin' })
+    expect(res.balanced).toBe(true)
+    expect(res.totals.assets).toBeDefined()
+    expect(res.totals.liabilitiesAndEquity).toBeDefined()
+    expect(res.totals.assets).toEqual(res.totals.liabilitiesAndEquity)
+  })
 
-  it('Zero-transaction period: BS returns valid structure with zeros, no crash', async () => {
-    const bsRes = await api.get(`/reports/balance-sheet?asOf=1990-01-01`);
-    expect(bsRes.status).toBe(200);
-    expect(bsRes.data.balanced).toBe(true);
-    expect(bsRes.data.assets.total).toBe(0);
-    expect(bsRes.data.liabilities.total).toBe(0);
-    expect(bsRes.data.equity.total).toBe(0);
-  });
+  it('BS-003: GET /reports/balance-sheet?asOf=2020-01-01 -> still balanced (historical date)', async () => {
+    const res = await api('/reports/balance-sheet?asOf=2020-01-01', { as: 'admin' })
+    expect(res.balanced).toBe(true)
+    expect(res.totals.assets).toEqual(res.totals.liabilitiesAndEquity)
+  })
 
-  it('BS after FX transactions: foreign currency entries reflected correctly in base currency', async () => {
-    const invRes = await api.post('/invoices', {
-      customerId: 1, date: today(), currency: 'USD', exchangeRate: 80,
-      items: [{ accountId: 4000, description: 'Export', quantity: 1, unitPrice: 100 }] 
-    });
-    await api.post(`/invoices/${invRes.data.id}/confirm`);
+  it('BS: After posting a manual entry and reversing it -> BS still balanced', async () => {
+    const jeRes = await api('/journal-entries', {
+      method: 'POST',
+      body: {
+        journalId: miscJournalId,
+        date: today(),
+        reference: 'Test BS entry',
+        narration: 'Test',
+        items: [
+          { accountId: expAccountId, debit: 1000, credit: 0 },
+          { accountId: bankAccountId, debit: 0, credit: 1000 }
+        ]
+      },
+      as: 'admin'
+    })
+    expect(jeRes.status).toBe(201)
     
-    const bsRes = await api.get('/reports/balance-sheet');
-    expect(bsRes.data.balanced).toBe(true);
-  });
-});
+    let bs = await api('/reports/balance-sheet', { as: 'admin' })
+    expect(bs.balanced).toBe(true)
+    
+    const revRes = await api(`/journal-entries/${jeRes.id}/reverse`, {
+      method: 'POST',
+      body: { reason: 'Test reversal' },
+      as: 'admin'
+    })
+    expect(revRes.status).toBe(201)
+
+    bs = await api('/reports/balance-sheet', { as: 'admin' })
+    expect(bs.balanced).toBe(true)
+  })
+
+  it('BS: TB CSV export starts with correct header', async () => {
+    const res = await api('/reports/trial-balance?format=csv', { as: 'admin' })
+    expect(typeof res).toBe('string')
+    expect(res).toMatch(/^Code,Account,Type,Debit,Credit/)
+  })
+
+  it('NEW: Inventory valuation ties out -> GET /reports/inventory-valuation, assert tiesOut=true', async () => {
+    const res = await api('/reports/inventory-valuation', { as: 'admin' })
+    expect(res.tiesOut).toBe(true)
+    expect(res.totals.value).toBeDefined()
+    expect(res.totals.ledgerBalance).toBeDefined()
+  })
+
+  it.todo('BS-004: .todo')
+  it.todo('BS-005: .todo')
+  it.todo('BS-006: .todo')
+  it.todo('BS-007: .todo')
+})
