@@ -121,6 +121,30 @@ const PRESETS = {
       { description: 'Custom Reception Desk', hsn: '94033000', qty: 1, unit: 'nos', rate: 68000, gst: 18 },
     ],
   },
+
+  // A layout copied from a real invoice rather than shaped to suit the parser:
+  // seller and buyer in blocks beside each other, a wide tax table whose
+  // descriptions wrap, serial numbers on their own line, `05-Sep-2026` dates,
+  // and a summary that reads "Total CGST" with the percentage left up in the
+  // column header. Every one of those broke the parser when first tried.
+  columnar: {
+    file: 'sample-columnar-invoice.pdf',
+    layout: 'columnar',
+    vendor: {
+      name: 'Zuma Corporation',
+      address: '45 Tech Park, Andheri East',
+      city: 'Mumbai, Maharashtra 400069',
+      gstin: '27AAACZ1234A1Z5',
+      pan: 'AAACZ1234A',
+    },
+    interState: false,
+    invoice: { number: 'ZUMA/2026/102', date: '05-Sep-2026', dueDate: null, poNumber: null },
+    items: [
+      { description: 'Enterprise Software License - Annual', hsn: '9973', qty: 1, unit: null, rate: 150000, gst: 18 },
+      { description: 'Cloud Infrastructure Setup', hsn: '9983', qty: 1, unit: null, rate: 45000, gst: 18 },
+      { description: 'Monthly IT Support Retainer', hsn: '9983', qty: 2, unit: null, rate: 25000, gst: 18 },
+    ],
+  },
 }
 
 const BUYER = {
@@ -253,6 +277,139 @@ function buildPdf(preset, outPath) {
   return { subtotal, taxLines, taxTotal, total }
 }
 
+
+/**
+ * The columnar layout: seller and buyer side by side, a wide tax table, and a
+ * totals block whose labels carry no percentage. Kept separate from buildPdf
+ * rather than folded into it with flags — they share almost no positioning,
+ * and the point of this one is to be shaped like a real invoice rather than
+ * like something the parser already handles.
+ */
+function buildColumnarPdf(preset, outPath) {
+  const { vendor, invoice, items } = preset
+  const doc = new PDFDocument({ size: 'A4', margin: 40 })
+  doc.pipe(createWriteStream(outPath))
+
+  doc.font('Helvetica-Bold').fontSize(17).text('TAX INVOICE', 40, 44, { width: 515, align: 'center' })
+  doc.font('Helvetica').fontSize(9).text('Original for Recipient', 40, 66, { width: 515, align: 'center' })
+  doc.moveTo(40, 88).lineTo(555, 88).lineWidth(1.5).strokeColor('#222').stroke()
+
+  doc.font('Helvetica-Bold').fontSize(9.5).text('Invoice No:', 40, 106, { continued: true })
+  doc.font('Helvetica').text(` ${invoice.number}`)
+  doc.font('Helvetica-Bold').text('Date:', 40, 119, { continued: true })
+  doc.font('Helvetica').text(` ${invoice.date}`)
+  doc.font('Helvetica-Bold').fontSize(9.5).text('Place of Supply:', 330, 106, { continued: true })
+  doc.font('Helvetica').text(' Maharashtra (Code: 27)')
+
+  // Two boxes side by side — the layout the flattened text layer merges.
+  const boxY = 142
+  doc.rect(40, boxY, 257, 22).fillAndStroke('#f2f2f2', '#bbb')
+  doc.rect(297, boxY, 258, 22).fillAndStroke('#f2f2f2', '#bbb')
+  doc.fillColor('#000').font('Helvetica-Bold').fontSize(9.5)
+  doc.text('Billed By (Seller)', 48, boxY + 7)
+  doc.text('Billed To (Buyer)', 305, boxY + 7)
+  doc.rect(40, boxY + 22, 257, 74).stroke('#bbb')
+  doc.rect(297, boxY + 22, 258, 74).stroke('#bbb')
+
+  const party = (p, x, y) => {
+    doc.font('Helvetica-Bold').fontSize(11).text(p.name, x, y)
+    doc.font('Helvetica').fontSize(8.5)
+    doc.text(p.address, x, y + 16)
+    doc.text(p.city, x, y + 27)
+    doc.font('Helvetica-Bold').text('GSTIN:', x, y + 38, { continued: true })
+    doc.font('Helvetica').text(` ${p.gstin}`)
+    doc.font('Helvetica-Bold').text('PAN:', x, y + 49, { continued: true })
+    doc.font('Helvetica').text(` ${p.pan}`)
+  }
+  party(vendor, 48, boxY + 30)
+  party({ ...BUYER, pan: 'AAACU5678B' }, 305, boxY + 30)
+
+  // Wide table: Rate, Taxable Value, CGST, SGST and Line Total — five numeric
+  // columns where the simpler layout has two.
+  const C = { sno: 46, desc: 76, hsn: 196, qty: 230, rate: 262, taxable: 330, cgst: 396, sgst: 444, total: 492 }
+  let y = 262
+  doc.rect(40, y - 8, 515, 30).fillAndStroke('#f2f2f2', '#bbb')
+  doc.fillColor('#000').font('Helvetica-Bold').fontSize(7.5)
+  doc.text('S.No', C.sno, y - 1)
+  doc.text('Description of Goods/', C.desc, y - 5)
+  doc.text('Services', C.desc, y + 4)
+  doc.text('HSN/', C.hsn, y - 5)
+  doc.text('SAC', C.hsn, y + 4)
+  doc.text('Qty', C.qty, y - 1)
+  doc.text('Rate', C.rate, y - 1)
+  doc.text('Taxable Value', C.taxable, y - 1)
+  doc.text('CGST', C.cgst, y - 5)
+  doc.text('(9%)', C.cgst, y + 4)
+  doc.text('SGST', C.sgst, y - 5)
+  doc.text('(9%)', C.sgst, y + 4)
+  doc.text('Total', C.total, y - 1)
+  y += 26
+
+  let subtotal = 0
+  let cgstTotal = 0
+  items.forEach((item, i) => {
+    const taxable = item.qty * item.rate
+    const half = Math.round(taxable * (item.gst / 2 / 100) * 100) / 100
+    subtotal += taxable
+    cgstTotal += half
+
+    // Description over two lines and the serial number on its own baseline —
+    // exactly how a narrow column wraps, and what the single-line row pattern
+    // could not read.
+    const words = item.description.split(' ')
+    const mid = Math.ceil(words.length / 2)
+    doc.font('Helvetica').fontSize(8)
+    doc.text(String(i + 1), C.sno, y + 5)
+    doc.text(words.slice(0, mid).join(' '), C.desc, y - 5, { width: 115 })
+    doc.text(words.slice(mid).join(' '), C.desc, y + 5, { width: 115 })
+    doc.text(item.hsn, C.hsn, y + 5)
+    doc.text(String(item.qty), C.qty, y + 5)
+    doc.text(money(item.rate), C.rate, y + 5)
+    doc.text(money(taxable), C.taxable, y + 5)
+    doc.text(money(half), C.cgst, y + 5)
+    doc.text(money(half), C.sgst, y + 5)
+    doc.text(money(taxable + half * 2), C.total, y + 5)
+    doc.rect(40, y - 10, 515, 30).stroke('#ddd')
+    y += 30
+  })
+
+  // Totals block: labels carry no percentage — the 9% is up in the header.
+  y += 24
+  const totalRow = (label, value, bold = false) => {
+    doc.rect(300, y - 6, 255, 22).stroke('#bbb')
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 9)
+    doc.text(label, 310, y)
+    // Helvetica has no rupee glyph and silently emits "¹" instead, which is
+    // exactly the kind of thing that makes a fixture test something other than
+    // what it claims to. "Rs." is what a document in this font would print.
+    doc.text(`Rs. ${money(value)}`, 380, y, { width: 165, align: 'right' })
+    y += 22
+  }
+  const total = subtotal + cgstTotal * 2
+  totalRow('Total Taxable Value', subtotal)
+  totalRow('Total CGST', cgstTotal)
+  totalRow('Total SGST', cgstTotal)
+  totalRow('Grand Total', total, true)
+
+  y += 30
+  doc.font('Helvetica-Bold').fontSize(8.5).text('Declaration:', 40, y)
+  doc.font('Helvetica').text('We declare that this invoice shows the actual price of the', 40, y + 12)
+  doc.text('goods/services described and that all particulars are true and correct.', 40, y + 23)
+  doc.font('Helvetica').fontSize(9).text(`For ${vendor.name}`, 330, y + 12, { width: 225, align: 'right' })
+  doc.text('Authorized Signatory', 330, y + 70, { width: 225, align: 'right' })
+
+  doc.end()
+  return {
+    subtotal,
+    taxLines: [
+      { label: 'Total CGST', amount: cgstTotal, base: subtotal },
+      { label: 'Total SGST', amount: cgstTotal, base: subtotal },
+    ],
+    taxTotal: cgstTotal * 2,
+    total,
+  }
+}
+
 // ── run ──
 const args = process.argv.slice(2)
 const arg = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=')
@@ -265,9 +422,16 @@ if (!preset) {
 }
 
 const target = arg('out') || path.resolve(process.cwd(), 'storage', preset.file)
-const totals = buildPdf(preset, target)
+const totals = (preset.layout === 'columnar' ? buildColumnarPdf : buildPdf)(preset, target)
 
-const iso = (d) => { const [dd, mm, yy] = d.split('/'); return `${yy}-${mm}-${dd}` }
+// The summary echoes what the parser should produce, so it has to understand
+// every date form the presets use, not just dd/mm/yyyy.
+const iso = (d) => {
+  if (!d) return '—'
+  const parsed = new Date(/^\d{1,2}\/\d{1,2}\//.test(d) ? d.split('/').reverse().join('-') : d.replace(/-/g, ' '))
+  if (Number.isNaN(parsed.getTime())) return d
+  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
+}
 
 console.log(`\n  Wrote ${target}   (preset: ${presetName})\n`)
 console.log('  What the scanner should pull out of it:')
@@ -275,7 +439,7 @@ console.log(`    ${preset.kind === 'order' ? 'customer     ' : 'vendor       '} 
 console.log(`    GSTIN         ${preset.vendor.gstin}`)
 console.log(`    invoice no    ${preset.invoice.number}`)
 console.log(`    invoice date  ${preset.invoice.date}  ->  ${iso(preset.invoice.date)}`)
-console.log(`    due date      ${preset.invoice.dueDate}  ->  ${iso(preset.invoice.dueDate)}`)
+if (preset.invoice.dueDate) console.log(`    due date      ${preset.invoice.dueDate}  ->  ${iso(preset.invoice.dueDate)}`)
 console.log(`    line items    ${preset.items.length}`)
 for (const item of preset.items) {
   console.log(`                  ${item.description.padEnd(22)} ${String(item.qty).padStart(3)} x ${money(item.rate).padStart(10)} @ ${item.gst}%`)

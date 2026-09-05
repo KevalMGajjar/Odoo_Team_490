@@ -43,24 +43,56 @@ async function getTesseractWorker(onProgress) {
   return tesseractWorkerPromise
 }
 
+const Y_TOLERANCE = 3
+/** A horizontal gap this wide means separate columns, not spacing. */
+const COLUMN_GAP = 60
+/** Anything holding a money figure is a table row, not a side-by-side block. */
+const MONEY = /\d[\d,]*\.\d{2}/
+
 /**
  * Reconstructs reading-order lines from pdf.js's flat, position-tagged text
  * items — needed because getTextContent() has no concept of rows, and the
  * invoice parser works line-by-line.
+ *
+ * Rows laid out as two columns get an extra line emitted for the left-hand
+ * side, ahead of the joined one. A GST invoice puts the seller and the buyer
+ * in blocks beside each other, and everything on one baseline flattens
+ * together — so "Zuma Corporation" and "Urban Furniture" arrived as a single
+ * line and the parser read the vendor as both companies at once.
+ *
+ * Only for rows with no money figure in them. Table rows and totals are
+ * columnar too, and splitting those would hand the parser half a row and
+ * double-count every tax line. The party block has no amounts in it, which
+ * makes that a reliable way to tell the two apart.
  */
-function itemsToLines(items) {
+export function itemsToLines(items) {
   const rows = []
-  const Y_TOLERANCE = 3
   for (const item of items) {
     const y = item.transform[5]
     const x = item.transform[4]
     let row = rows.find((r) => Math.abs(r.y - y) <= Y_TOLERANCE)
     if (!row) { row = { y, parts: [] }; rows.push(row) }
-    row.parts.push({ x, text: item.str })
+    row.parts.push({ x, text: item.str, width: item.width ?? 0 })
   }
   rows.sort((a, b) => b.y - a.y) // pdf coordinates are bottom-up
-  return rows.map((r) => r.parts.sort((a, b) => a.x - b.x).map((p) => p.text).join(' ').replace(/\s+/g, ' ').trim())
-    .filter(Boolean)
+
+  const lines = []
+  for (const row of rows) {
+    const parts = row.parts.sort((a, b) => a.x - b.x)
+    const joined = parts.map((p) => p.text).join(' ').replace(/\s+/g, ' ').trim()
+    if (!joined) continue
+
+    if (!MONEY.test(joined)) {
+      const breakAt = parts.findIndex((p, i) =>
+        i > 0 && p.x - (parts[i - 1].x + parts[i - 1].width) > COLUMN_GAP)
+      if (breakAt > 0) {
+        const left = parts.slice(0, breakAt).map((p) => p.text).join(' ').replace(/\s+/g, ' ').trim()
+        if (left) lines.push(left)
+      }
+    }
+    lines.push(joined)
+  }
+  return lines
 }
 
 /** Tries the instant, exact path first. Returns null if the PDF has no usable text layer (a scan). */
