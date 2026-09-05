@@ -79,22 +79,27 @@ export default function BillDetailPage() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[1100px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xl font-semibold text-ink">{bill.number}</p>
+            <p className="text-xl font-semibold text-ink">Vendor Bill No. {bill.number}</p>
             <div className="flex items-center gap-2">
               <StatusBadge status={bill.settleState} />
-              {bill.state === 'posted' && (
-                <div className="flex gap-2">
-                  <SmartButton value={bill.allocations?.length ?? 0} label="Payments" />
-                  {bill.journalEntry && <SmartButton value={formatMoney(bill.total)} label="Journal" href={`/journal-entries/${bill.journalEntry.id}`} />}
-                  <SmartButton value={bill.stockMoves?.length ?? 0} label="Stock Moves" />
-                </div>
-              )}
+              <div className="flex gap-2">
+                {bill.purchaseOrder && <SmartButton value={bill.purchaseOrder.number} label="PO" href={`/purchase-orders/${bill.purchaseOrder.id}`} />}
+                <SmartButton value="View" label="Budget" href="/reports/budget" />
+                {bill.state === 'posted' && (
+                  <>
+                    <SmartButton value={bill.allocations?.length ?? 0} label="Payments" />
+                    {bill.journalEntry && <SmartButton value={formatMoney(bill.total)} label="Journal" href={`/journal-entries/${bill.journalEntry.id}`} />}
+                    <SmartButton value={bill.stockMoves?.length ?? 0} label="Stock Moves" />
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
           <FormSection>
             <FormGrid>
               <FormField label="Vendor"><TextInput value={bill.vendor?.name ?? ''} disabled /></FormField>
+              <FormField label="Bill Reference"><TextInput value={bill.reference ?? '—'} disabled /></FormField>
               <FormField label="Bill Date"><TextInput value={formatDate(bill.billDate)} disabled /></FormField>
               <FormField label="Due Date"><TextInput value={bill.dueDate ? formatDate(bill.dueDate) : '—'} disabled /></FormField>
               <FormField label="Residual"><TextInput value={formatMoney(bill.amountResidual)} disabled /></FormField>

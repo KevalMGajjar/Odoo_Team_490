@@ -118,6 +118,7 @@ export const registerPayment = z.object({
   paymentDate: isoDate('Payment date'),
   amount: amount('Payment amount'),
   currencyId: optionalUuid('Currency'),
+  note: note(300),
 })
 
 // ─────────────────────────── vouchers ───────────────────────────

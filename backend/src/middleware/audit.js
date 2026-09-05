@@ -58,8 +58,18 @@ export const AUDIT_ACTIONS = Object.freeze({
 /**
  * @param {import('@prisma/client').Prisma.TransactionClient} tx
  */
+/**
+ * `tx` is almost always an interactive-transaction client, where a failed
+ * statement poisons the whole transaction at the Postgres level — a plain
+ * JS try/catch here does NOT undo that, so a swallowed audit-log error would
+ * silently doom the real mutation's COMMIT while the route still reports
+ * success. A SAVEPOINT is what actually makes "this one write may fail
+ * without touching the rest of the transaction" true at the SQL level.
+ */
 export const writeAuditLog = async (tx, payload) => {
+  const savepoint = `audit_${Math.random().toString(36).slice(2, 10)}`
   try {
+    await tx.$executeRawUnsafe(`SAVEPOINT "${savepoint}"`)
     const { action, entity_type, entity_id, old_value, new_value, performed_by } = payload
     await tx.auditLog.create({
       data: {
@@ -73,5 +83,10 @@ export const writeAuditLog = async (tx, payload) => {
     })
   } catch (err) {
     console.error('[audit] failed to write log:', err.message)
+    try {
+      await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT "${savepoint}"`)
+    } catch (rollbackErr) {
+      console.error('[audit] failed to roll back to savepoint:', rollbackErr.message)
+    }
   }
 }

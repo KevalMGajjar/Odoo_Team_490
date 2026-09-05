@@ -291,6 +291,7 @@ router.get('/bills/:id', verifyJWT, internalOnly, async (req, res, next) => {
         journalEntry: { include: { items: { include: { account: true } } } },
         allocations: { include: { payment: true } },
         stockMoves: { include: { product: { select: { name: true } } } },
+        purchaseOrder: { select: { id: true, number: true } },
       },
     })
     if (!row) throw notFound('Vendor bill')
@@ -300,7 +301,7 @@ router.get('/bills/:id', verifyJWT, internalOnly, async (req, res, next) => {
 
 router.post('/bills', verifyJWT, canWrite, validate(S.vendorBillCreate), async (req, res, next) => {
   try {
-    const { vendorId, purchaseOrderId, billDate, dueDate, currencyId, lines: input } = req.body
+    const { vendorId, purchaseOrderId, reference, billDate, dueDate, currencyId, lines: input } = req.body
 
     const row = await prisma.$transaction(async (tx) => {
       const vendor = await tx.contact.findUnique({ where: { id: vendorId } })
@@ -315,7 +316,7 @@ router.post('/bills', verifyJWT, canWrite, validate(S.vendorBillCreate), async (
 
       const created = await tx.vendorBill.create({
         data: {
-          number, vendorId, purchaseOrderId: purchaseOrderId ?? null,
+          number, vendorId, purchaseOrderId: purchaseOrderId ?? null, reference: reference || null,
           billDate: toDateOnly(billDate),
           dueDate: dueDate ? toDateOnly(dueDate) : null,
           currencyId: currencyId ?? await baseCurrencyId(tx),
@@ -483,6 +484,7 @@ router.get('/invoices/:id', verifyJWT, async (req, res, next) => {
         journalEntry: { include: { items: { include: { account: true } } } },
         cogsEntry: { include: { items: { include: { account: true } } } },
         allocations: { include: { payment: true } },
+        salesOrder: { select: { id: true, number: true } },
       },
     })
     if (!row) throw notFound('Invoice')
@@ -497,7 +499,7 @@ router.get('/invoices/:id', verifyJWT, async (req, res, next) => {
 router.post('/invoices', verifyJWT, canWrite, validate(S.customerInvoiceCreate),
   async (req, res, next) => {
     try {
-      const { customerId, salesOrderId, invoiceDate, dueDate, currencyId, lines: input } = req.body
+      const { customerId, salesOrderId, reference, invoiceDate, dueDate, currencyId, lines: input } = req.body
 
       const row = await prisma.$transaction(async (tx) => {
         const customer = await tx.contact.findUnique({ where: { id: customerId } })
@@ -512,7 +514,7 @@ router.post('/invoices', verifyJWT, canWrite, validate(S.customerInvoiceCreate),
 
         const created = await tx.customerInvoice.create({
           data: {
-            number, customerId, salesOrderId: salesOrderId ?? null,
+            number, customerId, salesOrderId: salesOrderId ?? null, reference: reference || null,
             invoiceDate: toDateOnly(invoiceDate),
             dueDate: dueDate ? toDateOnly(dueDate) : null,
             currencyId: currencyId ?? await baseCurrencyId(tx),
@@ -613,7 +615,7 @@ router.post('/payments', verifyJWT, canWrite, validate(S.paymentCreate), async (
 /** "Register payment" from an invoice or a bill: allocates the whole amount to it. */
 const registerAgainst = (kind) => async (req, res, next) => {
   try {
-    const { journalId, paymentDate, amount, currencyId } = req.body
+    const { journalId, paymentDate, amount, currencyId, note } = req.body
     const model = kind === 'invoice' ? 'customerInvoice' : 'vendorBill'
 
     const row = await prisma.$transaction(async (tx) => {
@@ -634,6 +636,7 @@ const registerAgainst = (kind) => async (req, res, next) => {
           paymentDate: toDateOnly(paymentDate),
           currencyId: currencyId ?? doc.currencyId,
           amount: money(amount).toFixed(2),
+          note: note || null,
           createdBy: req.user.id,
           allocations: {
             create: [{

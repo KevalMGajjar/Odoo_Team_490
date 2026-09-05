@@ -525,6 +525,8 @@ model VendorBill {
   number          String      @unique // "BILL/2026/0001"
   vendorId        String      @map("vendor_id")
   purchaseOrderId String?     @map("purchase_order_id")
+  /// The vendor's own bill number — free text, distinct from our `number`.
+  reference       String?     @map("reference")
   billDate        DateTime    @map("bill_date") @db.Date
   dueDate         DateTime?   @map("due_date") @db.Date
   state           MoveState   @default(draft)
@@ -620,6 +622,8 @@ model CustomerInvoice {
   number         String      @unique // "INV/2026/0001"
   customerId     String      @map("customer_id")
   salesOrderId   String?     @map("sales_order_id")
+  /// A free-text reference for this invoice (e.g. the customer's PO number).
+  reference      String?     @map("reference")
   invoiceDate    DateTime    @map("invoice_date") @db.Date
   dueDate        DateTime?   @map("due_date") @db.Date
   state          MoveState   @default(draft)
@@ -687,6 +691,7 @@ model Payment {
   currencyId     String       @map("currency_id")
   exchangeRate   Decimal      @default(1) @map("exchange_rate") @db.Decimal(18, 6)
   amount         Decimal      @db.Decimal(14, 2)
+  note           String?      @map("note")
   state          MoveState    @default(draft)
   journalEntryId String?      @unique @map("journal_entry_id")
   createdBy      String?      @map("created_by")

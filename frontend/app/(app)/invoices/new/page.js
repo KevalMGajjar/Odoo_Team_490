@@ -20,6 +20,7 @@ export default function NewInvoicePage() {
   const { push } = useToast()
 
   const [customer, setCustomer] = useState(null)
+  const [reference, setReference] = useState('')
   const [invoiceDate, setInvoiceDate] = useState(toDateInput(new Date()))
   const [dueDate, setDueDate] = useState('')
   const [lines, setLines] = useState([blankProductLine()])
@@ -35,6 +36,7 @@ export default function NewInvoicePage() {
     try {
       const inv = await api.post('/invoices', {
         customerId: customer.id,
+        reference: reference || undefined,
         invoiceDate,
         dueDate: dueDate || undefined,
         lines: lines.map((l) => ({
@@ -68,6 +70,9 @@ export default function NewInvoicePage() {
               </FormField>
               <FormField label="Due Date">
                 <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} min={invoiceDate} />
+              </FormField>
+              <FormField label="Invoice Reference" hint="e.g. the customer's own PO number">
+                <TextInput value={reference} onChange={(e) => setReference(e.target.value)} />
               </FormField>
             </FormGrid>
           </FormSection>

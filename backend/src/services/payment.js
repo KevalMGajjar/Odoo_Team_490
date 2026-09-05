@@ -186,7 +186,10 @@ export async function postPayment(tx, { paymentId, userId = null }) {
     kind: diff.isZero() ? 'payment' : 'fx',
     date: payment.paymentDate,
     reference: payment.number,
-    narration: `${inbound ? 'Received from' : 'Paid to'} ${payment.partner?.name ?? ''}`.trim(),
+    narration: [
+      `${inbound ? 'Received from' : 'Paid to'} ${payment.partner?.name ?? ''}`.trim(),
+      payment.note?.trim(),
+    ].filter(Boolean).join(' — '),
     items,
     userId,
   })

@@ -20,6 +20,7 @@ export default function NewBillPage() {
   const { push } = useToast()
 
   const [vendor, setVendor] = useState(null)
+  const [reference, setReference] = useState('')
   const [billDate, setBillDate] = useState(toDateInput(new Date()))
   const [dueDate, setDueDate] = useState('')
   const [lines, setLines] = useState([blankProductLine()])
@@ -35,6 +36,7 @@ export default function NewBillPage() {
     try {
       const bill = await api.post('/bills', {
         vendorId: vendor.id,
+        reference: reference || undefined,
         billDate,
         dueDate: dueDate || undefined,
         lines: lines.map((l) => ({
@@ -68,6 +70,9 @@ export default function NewBillPage() {
               </FormField>
               <FormField label="Due Date">
                 <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} min={billDate} />
+              </FormField>
+              <FormField label="Bill Reference" hint="The vendor's own bill number">
+                <TextInput value={reference} onChange={(e) => setReference(e.target.value)} />
               </FormField>
             </FormGrid>
           </FormSection>

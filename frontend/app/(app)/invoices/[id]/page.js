@@ -82,22 +82,27 @@ export default function InvoiceDetailPage() {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[1100px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xl font-semibold text-ink">{invoice.number}</p>
+            <p className="text-xl font-semibold text-ink">Customer Invoice No. {invoice.number}</p>
             <div className="flex items-center gap-2">
               <StatusBadge status={invoice.settleState} />
-              {invoice.state === 'posted' && (
-                <div className="flex gap-2">
-                  <SmartButton value={invoice.allocations?.length ?? 0} label="Payments" />
-                  {invoice.journalEntry && <SmartButton value={formatMoney(invoice.total)} label="Revenue" href={`/journal-entries/${invoice.journalEntry.id}`} />}
-                  {invoice.cogsEntry && <SmartButton value={formatMoney(invoice.cogsEntry.items.reduce((s, i) => s + Number(i.debit), 0))} label="COGS" href={`/journal-entries/${invoice.cogsEntry.id}`} />}
-                </div>
-              )}
+              <div className="flex gap-2">
+                {invoice.salesOrder && <SmartButton value={invoice.salesOrder.number} label="SO" href={`/sales-orders/${invoice.salesOrder.id}`} />}
+                <SmartButton value="View" label="Budget" href="/reports/budget" />
+                {invoice.state === 'posted' && (
+                  <>
+                    <SmartButton value={invoice.allocations?.length ?? 0} label="Payments" />
+                    {invoice.journalEntry && <SmartButton value={formatMoney(invoice.total)} label="Revenue" href={`/journal-entries/${invoice.journalEntry.id}`} />}
+                    {invoice.cogsEntry && <SmartButton value={formatMoney(invoice.cogsEntry.items.reduce((s, i) => s + Number(i.debit), 0))} label="COGS" href={`/journal-entries/${invoice.cogsEntry.id}`} />}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
           <FormSection>
             <FormGrid>
               <FormField label="Customer"><TextInput value={invoice.customer?.name ?? ''} disabled /></FormField>
+              <FormField label="Invoice Reference"><TextInput value={invoice.reference ?? '—'} disabled /></FormField>
               <FormField label="Invoice Date"><TextInput value={formatDate(invoice.invoiceDate)} disabled /></FormField>
               <FormField label="Due Date"><TextInput value={invoice.dueDate ? formatDate(invoice.dueDate) : '—'} disabled /></FormField>
               <FormField label="Residual"><TextInput value={formatMoney(invoice.amountResidual)} disabled /></FormField>
