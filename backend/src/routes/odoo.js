@@ -24,7 +24,9 @@ router.get('/status', verifyJWT, adminOnly, requireErpEnabled, async (req, res, 
   try {
     const ping = await odooPing()
     const [unsynced, failed, synced] = await Promise.all([
-      prisma.journalEntry.count({ where: { state: 'posted', odooSyncStatus: 'not_synced' } }),
+      // 'pending' counts as outstanding: a process that died mid-sync leaves the
+      // row there, and treating it as in-flight forever would strand it.
+      prisma.journalEntry.count({ where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'pending'] } } }),
       prisma.journalEntry.count({ where: { odooSyncStatus: 'failed' } }),
       prisma.journalEntry.count({ where: { odooSyncStatus: 'synced' } }),
     ])
@@ -52,7 +54,7 @@ router.post('/sync-entry/:id', verifyJWT, adminOnly, requireErpEnabled, async (r
 router.post('/sync-all-entries', verifyJWT, adminOnly, requireErpEnabled, async (req, res, next) => {
   try {
     const pending = await prisma.journalEntry.findMany({
-      where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'failed'] } },
+      where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'pending', 'failed'] } },
       select: { id: true, number: true },
     })
 

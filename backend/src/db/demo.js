@@ -142,36 +142,8 @@ async function odooRpc(service, method, args) {
   return j.result
 }
 
-async function demoOdoo() {
-  h1('2. Odoo integration')
-  note('Claiming "it synced" from our own database proves nothing. Everything')
-  note('below is read back out of Odoo over raw JSON-RPC, not through our API.')
-
-  h2('There is a real Odoo on the other end')
-  const version = await odooRpc('common', 'version', [])
-  const dbs = await fetch(`${ODOO_BASE}/web/database/list`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: {} }),
-  }).then((r) => r.json()).then((j) => j.result)
-  say('server version', version.server_version)
-  say('databases', dbs.join(', '))
-
-  const uid = await odooRpc('common', 'login', [ODOO_DB, ODOO_USER, ODOO_PW])
-  if (!uid) { no('could not authenticate to Odoo - check ERP_* in .env'); return }
-  ok(`authenticated as uid ${uid}`)
-
-  const kw = (model, method, args, opts = {}) =>
-    odooRpc('object', 'execute_kw', [ODOO_DB, uid, ODOO_PW, model, method, args, opts])
-
-  h2('Pick an unsynced entry from our ledger')
-  const entry = await prisma.journalEntry.findFirst({
-    where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'failed'] } },
-    include: { items: { include: { account: true } } },
-    orderBy: { number: 'asc' },
-  })
-  if (!entry) { note('every posted entry is already synced - nothing left to show'); return }
-
+/** Push one entry and confirm, from inside Odoo, that it landed correctly. */
+async function pushAndVerifyOne({ entry, kw, token }) {
   say('entry', `${entry.number}   ${entry.narration ?? ''}`)
   let ourDr = 0
   let ourCr = 0
@@ -183,7 +155,6 @@ async function demoOdoo() {
   say('sync status before', entry.odooSyncStatus)
 
   h2('Push it')
-  const token = await login('admin01')
   const res = await fetch(`${API}/odoo/sync-entry/${entry.id}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -232,6 +203,81 @@ async function demoOdoo() {
     console.log(`      ${row.account.slice(0, 34).padEnd(36)} Dr ${String(row.debit).padStart(12)}  Cr ${String(row.credit).padStart(12)}`)
   }
   if (tb.rows?.length) ok('the two ledgers can be reconciled against each other')
+
+}
+
+async function demoOdoo() {
+  h1('2. Odoo integration')
+  note('Claiming "it synced" from our own database proves nothing. Everything')
+  note('below is read back out of Odoo over raw JSON-RPC, not through our API.')
+
+  h2('There is a real Odoo on the other end')
+  const version = await odooRpc('common', 'version', [])
+  const dbs = await fetch(`${ODOO_BASE}/web/database/list`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: {} }),
+  }).then((r) => r.json()).then((j) => j.result)
+  say('server version', version.server_version)
+  say('databases', dbs.join(', '))
+
+  const uid = await odooRpc('common', 'login', [ODOO_DB, ODOO_USER, ODOO_PW])
+  if (!uid) { no('could not authenticate to Odoo - check ERP_* in .env'); return }
+  ok(`authenticated as uid ${uid}`)
+
+  const kw = (model, method, args, opts = {}) =>
+    odooRpc('object', 'execute_kw', [ODOO_DB, uid, ODOO_PW, model, method, args, opts])
+
+  const token = await login('admin01')
+
+  h2('Pick an unsynced entry from our ledger')
+  const entry = await prisma.journalEntry.findFirst({
+    where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'failed'] } },
+    include: { items: { include: { account: true } } },
+    orderBy: { number: 'asc' },
+  })
+  if (!entry) {
+    note('everything is already synced, so there is nothing left to push here.')
+    note('The checks below are the ones that matter anyway — they read Odoo.')
+  }
+  if (entry) await pushAndVerifyOne({ entry, kw, token })
+
+  h2('Invoices arrive as invoices, not as raw journal entries')
+  const types = {}
+  const allIds = await kw('account.move', 'search', [[]])
+  for (const mv of await kw('account.move', 'read', [allIds], { fields: ['move_type'] })) {
+    types[mv.move_type] = (types[mv.move_type] ?? 0) + 1
+  }
+  say('out_invoice (customer)', `${types.out_invoice ?? 0}   vs ${await prisma.customerInvoice.count({ where: { state: 'posted' } })} of ours`)
+  say('in_invoice (vendor)', `${types.in_invoice ?? 0}   vs ${await prisma.vendorBill.count({ where: { state: 'posted' } })} of ours`)
+  say("entry (vouchers, COGS, …)", types.entry ?? 0)
+  if ((types.out_invoice ?? 0) > 0) ok('they appear under Customers > Invoices with a partner and a due date')
+
+  h2('And the two ledgers reconcile, account by account')
+  note('The real test. Odoo derives its own accounting from those invoices, so')
+  note('agreement here means the integration is faithful, not just populated.')
+  const [oursTB, odooTB] = await Promise.all([
+    fetch(`${API}/reports/trial-balance`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    fetch(`${API}/odoo/trial-balance`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+  ])
+  const round = (v) => Math.round(Number(v) * 100) / 100
+  const mine = new Map(oursTB.rows.map((r) => [r.name, { dr: round(r.debit), cr: round(r.credit) }]))
+  const theirs = new Map((odooTB.rows ?? []).map((r) => [r.account, { dr: round(r.debit), cr: round(r.credit) }]))
+  let disagree = 0
+  for (const name of new Set([...mine.keys(), ...theirs.keys()])) {
+    const a = mine.get(name) ?? { dr: 0, cr: 0 }
+    const b = theirs.get(name) ?? { dr: 0, cr: 0 }
+    if (Math.abs(a.dr - b.dr) > 0.01 || Math.abs(a.cr - b.cr) > 0.01) {
+      disagree += 1
+      console.log(`      ${C.r}${name.padEnd(32)}${C.x} ours ${a.dr}/${a.cr}   odoo ${b.dr}/${b.cr}`)
+    }
+  }
+  const total = (m, k) => round([...m.values()].reduce((t, r) => t + r[k], 0))
+  say('accounts compared', new Set([...mine.keys(), ...theirs.keys()]).size)
+  say('our total debits', total(mine, 'dr'))
+  say('Odoo total debits', total(theirs, 'dr'))
+  if (disagree === 0) ok('every account matches to the paisa')
+  else no(`${disagree} accounts disagree`)
 
   h2('What this does NOT do')
   note('Sync is manual and admin-only. Posting an invoice does not push to')

@@ -83,9 +83,15 @@ async function verifyLoginOtp() {
   // addresses that cannot receive anything — the code would be sent into the
   // void and never come back in the response. The flow is the same either way,
   // so check it against the outbox rather than sending mail nobody can read.
+  // Skip on anything except 'outbox-only', which is the one state that means
+  // no SMTP is configured. The probe is refreshed in the background, so it
+  // also reports 'unknown' briefly after a restart and 'down' when the mail
+  // server is unreachable — in both of those SMTP is still configured, the
+  // code still goes out rather than coming back in the response, and this
+  // check still cannot run.
   const health = await api('/health', { as: null })
-  if (health.checks?.mail?.status === 'up') {
-    return skip('login OTP', 'SMTP is configured — run with SMTP_HOST unset to exercise the code path')
+  if (health.checks?.mail?.status !== 'outbox-only') {
+    return skip('login OTP', `SMTP is configured (mail: ${health.checks?.mail?.status}) — run with SMTP_HOST unset to exercise this`)
   }
 
   const signup = await api('/auth/signup', {

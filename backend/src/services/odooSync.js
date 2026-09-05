@@ -141,9 +141,261 @@ export async function syncJournal(journalId) {
   return odooId
 }
 
+/**
+ * Control accounts, by code.
+ *
+ * Odoo derives an invoice's receivable/payable line from the *partner*, and a
+ * tax line from the *tax record* — not from anything the caller passes. So for
+ * a synced invoice to reproduce our journal entry, these four accounts have to
+ * be wired into the partner and the tax before the invoice is created.
+ *
+ * Codes rather than ids because that is already how mapAccountType identifies
+ * them, and a seeded chart always has them.
+ */
+const CONTROL = { receivable: '1100', payable: '2000', outputTax: '2100', inputTax: '1200' }
+
+/**
+ * Make Odoo's company keep its books in our base currency.
+ *
+ * A fresh Odoo with no country set defaults to USD. Nothing complains: our
+ * rupee figures were pushed as bare numbers and booked as dollars with the
+ * right digits, so the trial balances "matched" while Odoo's entire ledger was
+ * labelled in the wrong currency — and the one genuinely foreign invoice was
+ * out by the exchange rate, because we sent 991.20 USD and Odoo stored 991.20
+ * of its own USD.
+ *
+ * Also publishes our exchange rates, so a foreign-currency invoice converts to
+ * the same base amount Odoo that our ledger already recorded rather than to
+ * whatever rate Odoo would otherwise assume (1.0).
+ */
+export async function syncCompanyCurrency() {
+  const base = await prisma.currency.findFirst({ where: { isBase: true } })
+  if (!base) throw new Error('No base currency is configured')
+
+  // active_test:false — Odoo ships every currency but leaves all except the
+  // company's own deactivated, and a plain search silently returns nothing.
+  const [baseInOdoo] = await executeKw('res.currency', 'search_read', [[['name', '=', base.code]]],
+    { fields: ['id', 'active'], limit: 1, context: { active_test: false } })
+  if (!baseInOdoo) throw new Error(`Odoo has no ${base.code} currency`)
+  if (!baseInOdoo.active) await executeKw('res.currency', 'write', [[baseInOdoo.id], { active: true }])
+
+  const [company] = await executeKw('res.company', 'search_read', [[]], { fields: ['id', 'currency_id'], limit: 1 })
+  const changed = company.currency_id[0] !== baseInOdoo.id
+  if (changed) await executeKw('res.company', 'write', [[company.id], { currency_id: baseInOdoo.id }])
+
+  // Rates for everything else. Odoo stores "how many units of this currency
+  // per one unit of company currency" — the reciprocal of how we hold it.
+  const others = await prisma.currency.findMany({ where: { isBase: false, status: 'active' } })
+  let rates = 0
+  for (const currency of others) {
+    // Every rate, not just the newest. Both systems resolve a rate as "the
+    // most recent one on or before this date", so publishing only the latest
+    // silently revalues history: our USD invoice of 2026-07-20 belongs at
+    // 83.5, and with only the 2026-08-01 rate of 84.6 present Odoo booked it
+    // 1,090.32 higher — exactly the realised FX gain, now counted twice.
+    const history = await prisma.currencyRate.findMany({
+      where: { currencyId: currency.id }, orderBy: { date: 'asc' },
+    })
+    if (!history.length) continue
+
+    const [inOdoo] = await executeKw('res.currency', 'search_read', [[['name', '=', currency.code]]],
+      { fields: ['id', 'active'], limit: 1, context: { active_test: false } })
+    if (!inOdoo) continue
+    if (!inOdoo.active) await executeKw('res.currency', 'write', [[inOdoo.id], { active: true }])
+
+    for (const point of history) {
+      if (!Number(point.rate)) continue
+      const odooRate = 1 / Number(point.rate)
+      const date = toOdooDate(point.date)
+      const [existing] = await executeKw('res.currency.rate', 'search_read',
+        [[['currency_id', '=', inOdoo.id], ['name', '=', date]]], { fields: ['id'], limit: 1 })
+      if (existing) await executeKw('res.currency.rate', 'write', [[existing.id], { rate: odooRate }])
+      else await executeKw('res.currency.rate', 'create', [{ currency_id: inOdoo.id, name: date, rate: odooRate }])
+      rates += 1
+    }
+  }
+
+  return { baseCurrency: base.code, changed, rates }
+}
+
+/** The Odoo id of one of our accounts, syncing it first if it has never been pushed. */
+async function odooAccountByCode(code) {
+  const account = await prisma.chartOfAccount.findFirst({ where: { code } })
+  if (!account) throw new Error(`Chart of accounts has no ${code} — cannot map it into Odoo`)
+  return account.odooId || (await syncAccount(account.id))
+}
+
+/**
+ * An Odoo tax for one of our GST rates, created on demand.
+ *
+ * Odoo's own default taxes (15%, 0% exports) are not ours, and matching by
+ * rate alone would silently attach the wrong one. Each tax is created with
+ * explicit repartition lines so its tax amount lands in OUR GST account —
+ * without them Odoo posts to its default, and the trial balances stop
+ * agreeing even though every invoice looks right.
+ *
+ * Cached per process: a 62-entry sync would otherwise ask Odoo for the same
+ * handful of taxes hundreds of times.
+ */
+const taxCache = new Map()
+
+async function syncTax(rate, use) {
+  const amount = Number(rate)
+  if (!amount) return null // 0% — no tax line at all, rather than a zero one
+
+  const key = `${use}:${amount}`
+  if (taxCache.has(key)) return taxCache.get(key)
+
+  const name = `GST ${amount}%`
+  const found = await executeKw('account.tax', 'search_read',
+    [[['name', '=', name], ['type_tax_use', '=', use], ['amount', '=', amount]]], { fields: ['id'], limit: 1 })
+
+  let id
+  if (found.length) {
+    id = found[0].id
+  } else {
+    const taxAccount = await odooAccountByCode(use === 'sale' ? CONTROL.outputTax : CONTROL.inputTax)
+    const repartition = [
+      [0, 0, { repartition_type: 'base', factor_percent: 100 }],
+      [0, 0, { repartition_type: 'tax', factor_percent: 100, account_id: taxAccount }],
+    ]
+    id = await executeKw('account.tax', 'create', [{
+      name,
+      amount,
+      amount_type: 'percent',
+      type_tax_use: use,
+      invoice_repartition_line_ids: repartition,
+      refund_repartition_line_ids: repartition,
+    }])
+  }
+
+  taxCache.set(key, id)
+  return id
+}
+
+/**
+ * Point a partner at our receivable/payable accounts.
+ *
+ * Odoo assigns every new partner its own default AR/AP account. Leave that in
+ * place and a synced invoice debits Odoo's "Account Receivable" while our
+ * ledger debits Debtors (1100) — both internally consistent, neither
+ * reconcilable against the other.
+ */
+async function alignPartnerAccounts(partnerOdooId) {
+  await executeKw('res.partner', 'write', [[partnerOdooId], {
+    property_account_receivable_id: await odooAccountByCode(CONTROL.receivable),
+    property_account_payable_id: await odooAccountByCode(CONTROL.payable),
+  }])
+}
+
+/** Odoo's id for a currency code, activating it if Odoo has it switched off. */
+const currencyCache = new Map()
+async function odooCurrencyId(code) {
+  if (currencyCache.has(code)) return currencyCache.get(code)
+  const [found] = await executeKw('res.currency', 'search_read', [[['name', '=', code]]],
+    { fields: ['id', 'active'], limit: 1, context: { active_test: false } })
+  if (!found) throw new Error(`Odoo has no ${code} currency`)
+  if (!found.active) await executeKw('res.currency', 'write', [[found.id], { active: true }])
+  currencyCache.set(code, found.id)
+  return found.id
+}
+
+/** An account.move already carrying this reference, or null. Guards against a
+ *  re-run creating a second copy of a document that is already in Odoo. */
+async function findMoveByRef(ref) {
+  const found = await executeKw('account.move', 'search_read', [[['ref', '=', ref]]], { fields: ['id'], limit: 1 })
+  return found.length ? found[0].id : null
+}
+
+/**
+ * Push a customer invoice or vendor bill as a real Odoo *document* —
+ * out_invoice / in_invoice — rather than a bare journal entry.
+ *
+ * This is what makes it appear under Customers > Invoices with a partner, a
+ * due date and a payment state, instead of only in the Journal Entries list.
+ * Odoo derives the accounting itself from the lines, the partner and the
+ * taxes, which is the point: the resulting move is a genuine Odoo invoice, not
+ * a picture of one.
+ *
+ * Because Odoo recomputes the totals, they are checked against ours afterwards
+ * and a mismatch fails the sync loudly. A silently-different total would mean
+ * the two ledgers disagree, which is worse than not syncing at all.
+ */
+async function syncDocument({ doc, kind }) {
+  const isSale = kind === 'out_invoice'
+  const partner = isSale ? doc.customer : doc.vendor
+  const entry = doc.journalEntry
+
+  if (doc.state !== 'posted') {
+    throw Object.assign(new Error('Only posted documents can be synced to Odoo'), { status: 400 })
+  }
+
+  const existing = await findMoveByRef(doc.number)
+  if (existing) return { odooMoveId: existing, reused: true }
+
+  const partnerOdooId = partner.odooId || (await syncContact(partner.id))
+  await alignPartnerAccounts(partnerOdooId)
+
+  const journalOdooId = entry.journal.odooId || (await syncJournal(entry.journalId))
+
+  const lines = []
+  for (const line of doc.lines) {
+    const taxId = await syncTax(line.taxRate, isSale ? 'sale' : 'purchase')
+    lines.push([0, 0, {
+      product_id: line.product.odooId || (await syncProduct(line.productId)),
+      name: line.description || line.product.name,
+      quantity: Number(line.quantity),
+      price_unit: Number(line.unitPrice),
+      account_id: line.account.odooId || (await syncAccount(line.accountId)),
+      tax_ids: [[6, 0, taxId ? [taxId] : []]],
+    }])
+  }
+
+  const docDate = toOdooDate(isSale ? doc.invoiceDate : doc.billDate)
+
+  // A foreign-currency document has to say so, or Odoo reads its figures as
+  // base currency: our USD export invoice went in as 991.20 and was booked as
+  // ₹991.20 against the ₹82,765.20 our own ledger holds.
+  const currencyOdooId = doc.currency && !doc.currency.isBase
+    ? await odooCurrencyId(doc.currency.code)
+    : null
+
+  const moveId = await executeKw('account.move', 'create', [{
+    move_type: kind,
+    partner_id: partnerOdooId,
+    journal_id: journalOdooId,
+    invoice_date: docDate,
+    date: docDate,
+    ...(doc.dueDate ? { invoice_date_due: toOdooDate(doc.dueDate) } : {}),
+    ...(currencyOdooId ? { currency_id: currencyOdooId } : {}),
+    ref: doc.number,
+    invoice_line_ids: lines,
+  }])
+
+  await executeKw('account.move', 'action_post', [[moveId]])
+
+  // amount_total is in the *document's* currency, so compare it against our
+  // document total; the base-currency check that matters is the trial balance,
+  // which `npm run demo odoo` reconciles account by account.
+  const [posted] = await executeKw('account.move', 'read', [[moveId]], { fields: ['amount_total'] })
+  const ours = Number(doc.total)
+  if (Math.abs(posted.amount_total - ours) > 0.01) {
+    throw new Error(
+      `Odoo computed a different total for ${doc.number}: ${posted.amount_total} vs our ${ours}. ` +
+      'Refusing to leave the two ledgers disagreeing.',
+    )
+  }
+
+  return { odooMoveId: moveId }
+}
+
 /** Sync every master record that has never been synced. Returns per-table counts. */
 export async function syncAllMasters() {
   const counts = { accounts: 0, contacts: 0, products: 0, journals: 0 }
+
+  // First: everything below is denominated in this. Getting it wrong does not
+  // fail, it just silently books the whole ledger in the wrong currency.
+  counts.currency = await syncCompanyCurrency()
 
   const accounts = await prisma.chartOfAccount.findMany({ where: { status: 'active' } })
   for (const a of accounts) { await syncAccount(a.id); counts.accounts++ }
@@ -161,18 +413,31 @@ export async function syncAllMasters() {
 }
 
 /**
- * Mirrors one posted JournalEntry as an Odoo account.move (move_type
- * 'entry' — a plain journal entry carrying our own already-computed
- * debit/credit lines verbatim, not asking Odoo to recompute tax or
- * valuation). Creates as a draft, then posts it, mirroring our own
- * draft-then-posted invariant. Any failure is recorded on the row and
- * never thrown — this always runs after our own postEntry() has already
- * committed, so it must never look like the ledger write itself failed.
+ * Push one posted JournalEntry to Odoo, as whatever kind of record it really is.
+ *
+ * An entry raised by an invoice or a bill is synced as an Odoo *document*
+ * (out_invoice / in_invoice) and not as a journal entry, because posting that
+ * document in Odoo generates the same ledger lines itself. Syncing both would
+ * post the money twice — the trial balances would drift by the value of every
+ * invoice, which is the single worst thing this integration could do quietly.
+ *
+ * Everything else — COGS, payments, vouchers, manual entries — has no document
+ * counterpart in Odoo and is mirrored as a plain move_type 'entry' carrying our
+ * already-computed debits and credits verbatim.
+ *
+ * Failures are recorded on the row and rethrown. This always runs after our own
+ * postEntry() has committed, so a failure here never means the ledger write
+ * failed — only that Odoo does not yet reflect it.
  */
 export async function syncJournalEntry(entryId) {
   const entry = await prisma.journalEntry.findUniqueOrThrow({
     where: { id: entryId },
-    include: { journal: true, items: { include: { account: true, partner: true } } },
+    include: {
+      journal: true,
+      items: { include: { account: true, partner: true } },
+      invoice: { include: { customer: true, currency: true, lines: { include: { product: true, account: true } } } },
+      bill: { include: { vendor: true, currency: true, lines: { include: { product: true, account: true } } } },
+    },
   })
 
   if (entry.state !== 'posted') {
@@ -181,6 +446,29 @@ export async function syncJournalEntry(entryId) {
 
   try {
     await prisma.journalEntry.update({ where: { id: entryId }, data: { odooSyncStatus: 'pending', odooSyncError: null } })
+
+    // A document, if this entry came from one — otherwise a plain entry below.
+    if (entry.invoice || entry.bill) {
+      const { odooMoveId } = entry.invoice
+        ? await syncDocument({ doc: { ...entry.invoice, journalEntry: entry }, kind: 'out_invoice' })
+        : await syncDocument({ doc: { ...entry.bill, journalEntry: entry }, kind: 'in_invoice' })
+
+      await prisma.journalEntry.update({
+        where: { id: entryId },
+        data: { odooSyncStatus: 'synced', odooMoveId, odooSyncedAt: new Date(), odooSyncError: null },
+      })
+      return { odooMoveId }
+    }
+
+    // Re-running must not create a second copy of an entry Odoo already holds.
+    const already = await findMoveByRef(entry.number)
+    if (already) {
+      await prisma.journalEntry.update({
+        where: { id: entryId },
+        data: { odooSyncStatus: 'synced', odooMoveId: already, odooSyncedAt: new Date(), odooSyncError: null },
+      })
+      return { odooMoveId: already }
+    }
 
     const journalOdooId = entry.journal.odooId || await syncJournal(entry.journalId)
 

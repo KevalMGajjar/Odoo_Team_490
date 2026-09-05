@@ -21,7 +21,8 @@
     "verify:documents": "node src/db/verify-documents.js",
     "verify:api": "node src/db/verify-api.js",
     "files": "node src/db/files.js",
-    "demo": "node src/db/demo.js"
+    "demo": "node src/db/demo.js",
+    "sync": "node src/db/sync.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
