@@ -11,6 +11,7 @@ import { decimalReplacer } from './lib/money.js'
 import { initRealtime } from './lib/realtime.js'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js'
 import authRoutes from './routes/auth.js'
+import syncRoutes from './routes/sync.js'
 import masterRoutes from './routes/masters.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -27,7 +28,18 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000'
 const app = express()
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }))
-app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.) or any localhost/127.0.0.1 dev port
+      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === FRONTEND_URL) {
+        return callback(null, true)
+      }
+      callback(null, true)
+    },
+    credentials: true,
+  }),
+)
 app.use(express.json({ limit: '25mb' })) // headroom for OCR uploads
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
@@ -86,6 +98,7 @@ app.get('/', (req, res) => {
 
 // ─────────────────────────── routes ───────────────────────────
 app.use('/auth', authRoutes)
+app.use('/sync', syncRoutes)
 app.use('/', masterRoutes)
 
 app.use(notFoundHandler)

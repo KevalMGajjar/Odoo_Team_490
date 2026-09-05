@@ -35,8 +35,9 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
       return created
     })
 
-    setAuthCookie(res, signToken(user))
-    res.status(201).json({ user: publicUser(user) })
+    const token = signToken(created)
+    setAuthCookie(res, token)
+    res.status(201).json({ user: publicUser(created), token })
   } catch (err) { next(err) }
 })
 
@@ -52,8 +53,9 @@ router.post('/login', validate(loginSchema), async (req, res, next) => {
     }
     if (user.status === 'archived') throw unauthorized('This account has been deactivated')
 
-    setAuthCookie(res, signToken(user))
-    res.json({ user: publicUser(user) })
+    const token = signToken(user)
+    setAuthCookie(res, token)
+    res.json({ user: publicUser(user), token })
   } catch (err) { next(err) }
 })
 
