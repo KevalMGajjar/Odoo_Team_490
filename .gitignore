@@ -1,0 +1,49 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# environment — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# next.js
+.next/
+out/
+build/
+dist/
+
+# database / uploads / generated
+*.db
+*.sqlite
+/backend/uploads/
+/backend/snapshots/
+/backend/prisma/generated/
+
+# logs
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# editors
+.vscode/
+.idea/
+*.swp
+
+# misc
+coverage/
+.turbo/
+*.tsbuildinfo
