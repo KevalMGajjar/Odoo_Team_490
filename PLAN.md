@@ -54,7 +54,7 @@ flowchart LR
     F --> B["Express API + Prisma"]
     P --> B
     B --> DB[("PostgreSQL<br/>General Ledger")]
-    B <--> O["Odoo 17<br/>XML-RPC"]
+    B <--> O["Odoo 19<br/>XML-RPC"]
     B --> WS(["Socket.IO<br/>live updates"])
     S["Slack / CLI"] --> AI["AI Agent<br/>(tools over the same API)"]
     AI --> B
@@ -69,7 +69,7 @@ flowchart LR
 | DB | PostgreSQL 15, all money as `Decimal(14,2)` |
 | Auth | bcrypt + JWT in httpOnly cookie + `requireRole` middleware |
 | PDF | `pdfkit` or `@react-pdf/renderer` for invoice/bill PDFs |
-| ERP | `xmlrpc` → Odoo 17 in Docker |
+| ERP | `xmlrpc` → Odoo 19 in Docker (latest stable — Odoo 20 isn't out until Odoo Experience 2026, ~Sept 24–26) |
 | AI | Groq (OpenAI-compatible), `AI_BASE_URL` swappable to local Ollama |
 
 **Ports:** frontend 3000, API 4000, Postgres 5432, Odoo 8069.
@@ -1031,7 +1031,7 @@ NICE #2 in IDEAS.md §0.5 says don't depend on the internet. For an accounting s
 | Concern | Local solution |
 |---|---|
 | Database | **Local PostgreSQL 16** — already running on this machine, no container needed |
-| ERP | Odoo 17 in a **local** container; app degrades to "ERP unavailable" if absent |
+| ERP | Odoo 19 in a **local** container; app degrades to "ERP unavailable" if absent |
 | Fonts | **Self-host Inter** as woff2 in `/public/fonts` — no Google Fonts request at runtime |
 | Icons | `lucide-react` bundled — no icon CDN |
 | Charts | Recharts bundled — no chart service |
@@ -1169,7 +1169,7 @@ NICE #2 in IDEAS.md §0.5 says don't depend on the internet. For an accounting s
 
 ```bash
 git init && git remote add origin <repo>
-docker pull postgres:15 && docker pull odoo:17          # do this on good wifi
+docker pull postgres:16 && docker pull odoo:19          # do this on good wifi
 docker run --name uf-postgres -e POSTGRES_USER=urban -e POSTGRES_PASSWORD=urban \
   -e POSTGRES_DB=urbanfurniture -p 5432:5432 -d postgres:15
 cd backend && npm i express @prisma/client bcryptjs jsonwebtoken cookie-parser \

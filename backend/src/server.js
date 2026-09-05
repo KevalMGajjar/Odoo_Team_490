@@ -18,6 +18,7 @@ import transactionRoutes from './routes/transactions.js'
 import auditRoutes from './routes/audit.js'
 import portalRoutes from './routes/portal.js'
 import stockRoutes from './routes/stock.js'
+import odooRoutes from './routes/odoo.js'
 import { buildOpenApiDocument } from './docs/openapi.js'
 
 // Fail fast rather than starting a server that cannot issue valid sessions.
@@ -91,9 +92,15 @@ app.get('/health', async (req, res) => {
     checks.database = { status: 'down', detail: err.message }
   }
 
-  checks.erp = process.env.ERP_ENABLED === 'true'
-    ? { status: 'configured', url: process.env.ERP_BASE_URL }
-    : { status: 'disabled', detail: 'Optional — the app is fully functional without it' }
+  if (process.env.ERP_ENABLED === 'true') {
+    const { odooPing } = await import('./services/odooClient.js')
+    const ping = await odooPing()
+    checks.erp = ping.reachable
+      ? { status: 'up', url: process.env.ERP_BASE_URL, latencyMs: ping.latencyMs }
+      : { status: 'down', url: process.env.ERP_BASE_URL, detail: ping.error }
+  } else {
+    checks.erp = { status: 'disabled', detail: 'Optional — the app is fully functional without it' }
+  }
 
   checks.ai = process.env.AI_ENABLED === 'true'
     ? { status: 'configured', model: process.env.AI_MODEL, offline: /localhost|127\.0\.0\.1/.test(process.env.AI_BASE_URL ?? '') }
@@ -143,6 +150,7 @@ app.use('/reports', reportRoutes)
 app.use('/', transactionRoutes)
 app.use('/audit', auditRoutes)
 app.use('/portal', portalRoutes)
+app.use('/odoo', odooRoutes)
 app.use('/', stockRoutes)
 app.use('/', masterRoutes)
 

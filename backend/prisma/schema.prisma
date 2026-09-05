@@ -117,6 +117,16 @@ enum AnalyticType {
   expense
 }
 
+/// The Odoo mirror is best-effort and asynchronous relative to posting —
+/// never a precondition for it. `failed` carries a reason in
+/// JournalEntry.odooSyncError and is safe to retry at any time.
+enum OdooSyncStatus {
+  not_synced
+  pending
+  synced
+  failed
+}
+
 /// Voucher entry screens. BReceipt/BPayment post through a bank journal,
 /// CReceipt/CPayment through a cash journal, Journal is unrestricted.
 enum VoucherType {
@@ -206,6 +216,11 @@ model Contact {
   status       Status      @default(active)
   createdAt    DateTime    @default(now()) @map("created_at")
 
+  /// res.partner id in Odoo, once synced. Matching is by this stored mapping,
+  /// never by name — re-running the sync is always safe.
+  odooId    Int?      @map("odoo_id")
+  odooSyncedAt DateTime? @map("odoo_synced_at")
+
   user           User?
   purchaseOrders PurchaseOrder[]
   salesOrders    SalesOrder[]
@@ -257,6 +272,10 @@ model Product {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  /// product.product id in Odoo, once synced.
+  odooId       Int?      @map("odoo_id")
+  odooSyncedAt DateTime? @map("odoo_synced_at")
+
   category         ProductCategory?      @relation(fields: [categoryId], references: [id])
   tax              Tax?                  @relation(fields: [taxId], references: [id])
   incomeAccount    ChartOfAccount?       @relation("ProductIncome", fields: [incomeAccountId], references: [id])
@@ -299,6 +318,11 @@ model ChartOfAccount {
   isCashBank Boolean    @default(false) @map("is_cash_bank")
   createdAt DateTime    @default(now()) @map("created_at")
 
+  /// account.account id in Odoo, once synced — matched by `code`, so the
+  /// mapping survives a rename on either side without duplicating the account.
+  odooId       Int?      @map("odoo_id")
+  odooSyncedAt DateTime? @map("odoo_synced_at")
+
   journalItems      JournalItem[]
   journalsAsDebit   Journal[]     @relation("JournalDefaultDebit")
   journalsAsCredit  Journal[]     @relation("JournalDefaultCredit")
@@ -321,6 +345,10 @@ model Journal {
   defaultDebitId  String?     @map("default_debit_id")
   defaultCreditId String?     @map("default_credit_id")
   status          Status      @default(active)
+
+  /// account.journal id in Odoo, once synced.
+  odooId       Int?      @map("odoo_id")
+  odooSyncedAt DateTime? @map("odoo_synced_at")
 
   defaultDebit  ChartOfAccount? @relation("JournalDefaultDebit", fields: [defaultDebitId], references: [id])
   defaultCredit ChartOfAccount? @relation("JournalDefaultCredit", fields: [defaultCreditId], references: [id])
@@ -351,6 +379,14 @@ model JournalEntry {
   voucherType VoucherType? @map("voucher_type")
   voucherNo   Int?         @map("voucher_no")
   fiscalYear  Int?         @map("fiscal_year")
+
+  /// Mirror status to Odoo — pushed AFTER this entry is already committed
+  /// here, never a precondition for posting. Our ledger is the source of
+  /// truth regardless of whether Odoo is reachable.
+  odooSyncStatus OdooSyncStatus @default(not_synced) @map("odoo_sync_status")
+  odooMoveId     Int?           @map("odoo_move_id") // account.move id in Odoo
+  odooSyncedAt   DateTime?      @map("odoo_synced_at")
+  odooSyncError  String?        @map("odoo_sync_error")
 
   journal    Journal          @relation(fields: [journalId], references: [id])
   items      JournalItem[]
