@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js'
 import { verifyJWT, requireRole, adminOnly } from '../middleware/auth.js'
 import { writeAuditLog, AUDIT_ACTIONS } from '../middleware/audit.js'
 import { broadcastDocument } from '../lib/realtime.js'
-import { nextNumber } from '../services/sequence.js'
+import { nextNumber, peekNumber } from '../services/sequence.js'
 import { postEntry, reverseEntry, checkBalance, toDateOnly, postDraftEntry, resetEntryToDraft } from '../services/ledger.js'
 import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
@@ -149,6 +149,17 @@ router.get('/purchase-orders', verifyJWT, internalOnly, listDocuments('purchaseO
   include: { vendor: true, currency: true, lines: { include: { product: true } } },
   partnerField: 'vendorId',
 }))
+
+/** Next PO number for the new-order screen header — peeked, not consumed. Must
+ * stay registered before GET /purchase-orders/:id or "next-number" would be
+ * read as an :id. */
+router.get('/purchase-orders/next-number', verifyJWT, internalOnly, async (req, res, next) => {
+  try {
+    const on = req.query.date ? new Date(req.query.date) : new Date()
+    const number = await peekNumber(prisma, { code: 'PO', prefix: 'PO', date: on })
+    res.json({ number })
+  } catch (err) { next(err) }
+})
 
 router.get('/purchase-orders/:id', verifyJWT, internalOnly, async (req, res, next) => {
   try {
@@ -363,6 +374,17 @@ router.get('/sales-orders', verifyJWT, internalOnly, listDocuments('salesOrder',
   include: { customer: true, currency: true, lines: { include: { product: true } } },
   partnerField: 'customerId',
 }))
+
+/** Next SO number for the new-order screen header — peeked, not consumed. Must
+ * stay registered before GET /sales-orders/:id or "next-number" would be
+ * read as an :id. */
+router.get('/sales-orders/next-number', verifyJWT, internalOnly, async (req, res, next) => {
+  try {
+    const on = req.query.date ? new Date(req.query.date) : new Date()
+    const number = await peekNumber(prisma, { code: 'SO', prefix: 'SO', date: on })
+    res.json({ number })
+  } catch (err) { next(err) }
+})
 
 router.get('/sales-orders/:id', verifyJWT, internalOnly, async (req, res, next) => {
   try {

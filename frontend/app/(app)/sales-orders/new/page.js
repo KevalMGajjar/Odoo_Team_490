@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ScanLine } from 'lucide-react'
 import { ControlPanel } from '@/components/layout/ControlPanel'
@@ -24,6 +24,17 @@ export default function NewSalesOrderPage() {
   const [lines, setLines] = useState([blankProductLine()])
   const [error, setError] = useState('')
   const [scanOpen, setScanOpen] = useState(false)
+  const [nextNumber, setNextNumber] = useState(null)
+
+  // Peeked, not consumed — the real number is allocated on save, so this can
+  // drift if someone else saves first, but it's always right at a glance.
+  useEffect(() => {
+    let cancelled = false
+    api.get('/sales-orders/next-number', { date: orderDate }).then((res) => {
+      if (!cancelled) setNextNumber(res.number)
+    })
+    return () => { cancelled = true }
+  }, [orderDate])
 
   const canSubmit = customer && lines.length > 0 && lines.every((l) => l.productId && Number(l.quantity) > 0)
 
@@ -51,18 +62,21 @@ export default function NewSalesOrderPage() {
     <div className="flex h-full flex-col">
       <ControlPanel
         breadcrumb="Sales"
-        title="New Sales Order"
+        title={nextNumber ? `New Sales Order — ${nextNumber}` : 'New Sales Order'}
         actions={<Button type="button" variant="secondary" size="sm" icon={ScanLine} onClick={() => setScanOpen(true)}>Scan Invoice</Button>}
       />
       <form onSubmit={submit} className="flex-1 overflow-y-auto p-4 sm:p-6">
         <FormSheet className="max-w-[1100px]">
           <FormSection>
             <FormGrid>
-              <FormField label="Customer" required>
-                <SearchSelect path="/contacts" resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
+              <FormField label="SO No.">
+                <TextInput value={nextNumber ?? '…'} disabled />
               </FormField>
               <FormField label="SO Date" required>
                 <TextInput type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
+              </FormField>
+              <FormField label="Customer" required className="sm:col-span-2">
+                <SearchSelect path="/contacts" resolvedOption={customer} onChange={setCustomer} placeholder="Select customer" />
               </FormField>
             </FormGrid>
           </FormSection>
