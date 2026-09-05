@@ -80,7 +80,11 @@ async function callModel(transcript) {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw new Error(`AI endpoint returned ${res.status}: ${body.slice(0, 200)}`)
+      // Carry the status so the caller can explain the actual problem — a rate
+      // limit told to "check your API key" sends you after the wrong bug.
+      const err = new Error(`AI endpoint returned ${res.status}: ${body.slice(0, 200)}`)
+      err.status = res.status
+      throw err
     }
 
     const json = await res.json()
@@ -89,6 +93,24 @@ async function callModel(transcript) {
     return JSON.parse(content)
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/** Turn a transport/API failure into something the user can actually act on. */
+function explainFailure(err) {
+  if (err.name === 'AbortError') return 'That took too long to interpret. Please try again.'
+  switch (err.status) {
+    case 429:
+      return 'The assistant is rate-limited right now. Wait a few seconds and try again.'
+    case 401:
+    case 403:
+      return 'The assistant service rejected the API key. Check AI_API_KEY in the backend .env.'
+    case 404:
+      return `The configured model (${process.env.AI_MODEL}) isn't available on this account. Check AI_MODEL in the backend .env.`
+    default:
+      return err.status
+        ? `The assistant service returned an error (${err.status}). Please try again.`
+        : 'I could not reach the assistant service. Check AI_BASE_URL and your connection.'
   }
 }
 
@@ -108,12 +130,7 @@ export async function routeTranscript(transcript, { now = new Date() } = {}) {
     raw = await callModel(transcript)
   } catch (err) {
     console.error('[voice] model call failed:', err.message)
-    return {
-      ok: false,
-      clarify: err.name === 'AbortError'
-        ? 'That took too long to interpret. Please try again.'
-        : 'I could not reach the assistant service. Check that AI_ENABLED and AI_API_KEY are set.',
-    }
+    return { ok: false, clarify: explainFailure(err) }
   }
 
   const confidence = Number(raw?.confidence)
