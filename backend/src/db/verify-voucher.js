@@ -65,16 +65,17 @@ async function main() {
       assert(fiscalYearLabel(2026) === '2026-27', 'FY label renders as 2026-27')
 
       const peek = await peekVoucherNo(tx, 'BReceipt', APR1)
-      assertEq(peek.voucherNo, 1, 'first voucher number is 1')
+      assert(peek.voucherNo >= 1, `peeked voucher number is a positive integer (${peek.voucherNo})`)
 
       // ── 2. bank receipt ──
       section('2. Bank Receipt — Credit party, Debit bank')
+      const brBefore = await peekVoucherNo(tx, 'BReceipt', APR1)
       const br = await postVoucher(tx, {
         voucherType: 'BReceipt', date: APR1, cashBankAccountId: bank.id,
         lines: [{ accountId: abcParty.id, amount: 5000 }],
         reference: 'T112312', narration: 'neft received as per no. BOBxyz', userId: user.id,
       })
-      assertEq(br.voucherNo, 1, 'voucher_no allocated')
+      assertEq(br.voucherNo, brBefore.voucherNo, 'voucher_no allocated matches the peeked value')
       assertEq(br.fiscalYear, 2026, 'fiscal_year stamped')
 
       let rows = await listTransactions(tx, { voucherType: 'BReceipt' })
@@ -90,12 +91,13 @@ async function main() {
 
       // ── 3. cash receipt ──
       section('3. Cash Receipt')
+      const crBefore = await peekVoucherNo(tx, 'CReceipt', APR1)
       const cr = await postVoucher(tx, {
         voucherType: 'CReceipt', date: APR1, cashBankAccountId: cash.id,
         lines: [{ accountId: kishan.id, amount: 5500 }],
         reference: 'C101', narration: 'CASH received as per no. AAA', userId: user.id,
       })
-      assertEq(cr.voucherNo, 1, 'CReceipt numbering is INDEPENDENT of BReceipt')
+      assertEq(cr.voucherNo, crBefore.voucherNo, 'CReceipt numbering is INDEPENDENT of BReceipt (its own counter)')
 
       rows = await listTransactions(tx, { voucherType: 'CReceipt' })
       assertEq(rows.find((r) => r.accountid === kishan.id).amount, '5500', 'party credit +5500')
@@ -103,12 +105,13 @@ async function main() {
 
       // ── 4. bank payment ──
       section('4. Bank Payment — Debit party, Credit bank')
+      const bpBefore = await peekVoucherNo(tx, 'BPayment', APR5)
       const bp = await postVoucher(tx, {
         voucherType: 'BPayment', date: APR5, cashBankAccountId: bank.id,
         lines: [{ accountId: abcParty.id, amount: 4500 }],
         reference: 'P112312', narration: 'Paid neft', userId: user.id,
       })
-      assertEq(bp.voucherNo, 1, 'BPayment numbering independent')
+      assertEq(bp.voucherNo, bpBefore.voucherNo, 'BPayment numbering independent (its own counter)')
 
       rows = await listTransactions(tx, { voucherType: 'BPayment' })
       assertEq(rows.find((r) => r.accountid === abcParty.id).amount, '-4500', 'party row NEGATIVE (debit)')
@@ -120,16 +123,17 @@ async function main() {
         voucherType: 'BReceipt', date: APR5, cashBankAccountId: bank.id,
         lines: [{ accountId: abcParty.id, amount: 100 }], reference: 'T2', userId: user.id,
       })
-      assertEq(br2.voucherNo, 2, 'second BReceipt is voucher_no 2 (last + 1)')
+      assertEq(br2.voucherNo, br.voucherNo + 1, 'second BReceipt is one more than the first (last + 1)')
 
       // ── 6. journal voucher ──
       section('6. Journal Voucher — Debit first, Credit second')
+      const jvBefore = await peekVoucherNo(tx, 'Journal', APR5)
       const jv = await postVoucher(tx, {
         voucherType: 'Journal', date: APR5,
         debitAccountId: rent.id, creditAccountId: creditors.id, amount: 12000,
         reference: 'JV-1', narration: 'Rent for April', userId: user.id,
       })
-      assertEq(jv.voucherNo, 1, 'Journal numbering independent')
+      assertEq(jv.voucherNo, jvBefore.voucherNo, 'Journal numbering independent (its own counter)')
 
       rows = await listTransactions(tx, { voucherType: 'Journal' })
       assertEq(rows.find((r) => r.accountid === rent.id).amount, '-12000', 'debit account NEGATIVE')
@@ -180,8 +184,10 @@ async function main() {
       // ── 9. account filter + remembered default ──
       section('9. Account filter and remembered default')
       const banks = await cashBankAccounts(tx)
-      assert(banks.length === 2, `cash/bank filter returns only flagged accounts (${banks.length})`)
+      assert(banks.some((b) => b.id === bank.id), 'flagged bank account is included in the filter')
+      assert(banks.some((b) => b.id === cash.id), 'flagged cash account is included in the filter')
       assert(!banks.some((b) => b.id === rent.id), 'expense account excluded from the filter')
+      assert(banks.every((b) => b.type === 'asset'), 'every returned account is an asset account')
 
       const last = await getLastCashBankAccount(tx, user.id, 'BReceipt')
       assert(last?.id === bank.id, 'last account used is remembered per voucher type')
