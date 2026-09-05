@@ -38,7 +38,6 @@ dependencies:
   dio: ^5.11.1
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  flutter_secure_storage: ^11.0.0
   connectivity_plus: ^7.3.1
   google_fonts: ^8.2.1
   intl: ^0.20.3
