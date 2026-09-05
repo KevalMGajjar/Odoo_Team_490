@@ -140,13 +140,24 @@ export function DataTable({
             </table>
           </div>
 
-          {/* <768px: stacked cards, per UI.md §7 */}
+          {/* <768px: stacked cards, per UI.md §7.
+              A <div> here, not a <button> — a cell can render its own real
+              button or link (e.g. "View diff"), and <button> cannot contain
+              another <button> without breaking HTML nesting rules and
+              causing a hydration mismatch. role="button" + tabIndex keeps it
+              keyboard-reachable when onRowClick is actually provided. */}
           <div className="flex-1 overflow-auto sm:hidden">
             {sortedRows.map((row) => (
-              <button
+              <div
                 key={getRowKey(row)}
                 onClick={() => onRowClick?.(row)}
-                className="block w-full border-b border-line px-4 py-3 text-left hover:bg-surface-hover"
+                role={onRowClick ? 'button' : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (e) => (e.key === 'Enter' || e.key === ' ') && onRowClick(row) : undefined}
+                className={clsx(
+                  'block w-full border-b border-line px-4 py-3 text-left',
+                  onRowClick && 'cursor-pointer hover:bg-surface-hover',
+                )}
               >
                 {columns.filter((c) => !c.hideOnMobile).map((col) => (
                   <div key={col.key} className="flex items-center justify-between gap-2 py-0.5">
@@ -156,7 +167,7 @@ export function DataTable({
                     </span>
                   </div>
                 ))}
-              </button>
+              </div>
             ))}
           </div>
         </>

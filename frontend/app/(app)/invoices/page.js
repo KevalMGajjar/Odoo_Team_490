@@ -22,7 +22,7 @@ export default function InvoicesListPage() {
     {
       key: 'dueDate', header: 'Due', hideOnMobile: true,
       render: (r) => {
-        const due = relativeDue(r.dueDate)
+        const due = relativeDue(r.dueDate, r.settleState)
         return <span className={due?.includes('overdue') ? 'text-state-overdue' : 'text-ink-muted'}>{due ?? '—'}</span>
       },
     },

@@ -72,9 +72,16 @@ export function formatDateTime(value) {
   return `${formatDate(value)}, ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
-/** "3 days overdue" / "due in 5 days" — used on invoice/bill worklists. */
-export function relativeDue(dueDate) {
+/**
+ * "3 days overdue" / "due in 5 days" — used on invoice/bill worklists.
+ *
+ * Pass `settleState` when known: a fully paid document is never "overdue" —
+ * it may have been paid late, but there is nothing outstanding to chase, so
+ * showing red urgency styling on it is actively misleading, not just cosmetic.
+ */
+export function relativeDue(dueDate, settleState) {
   if (!dueDate) return null
+  if (settleState === 'paid') return null
   const due = new Date(dueDate)
   const today = new Date()
   const diffDays = Math.round((due.setUTCHours(0, 0, 0, 0) - today.setUTCHours(0, 0, 0, 0)) / 86400000)
