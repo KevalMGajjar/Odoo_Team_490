@@ -925,12 +925,76 @@ Then seed **~3 months of backdated posted transactions** (12 invoices, 8 bills, 
 1. **Trial Balance + drill-down** *(§6.1, §6.5)* — 3h. The highest-credibility-per-hour item in the whole plan.
 2. **Live Odoo integration** — 3h. Sync `chart_of_accounts` ↔ `account.account` and contacts ↔ `res.partner`; push posted entries to `account.move`. Then show **your trial balance and Odoo's matching side by side.** For an accounting PS, this is devastating.
 3. **Real-time (Socket.IO)** — 2h. Broadcast on every post/payment. Two windows: accountant posts an invoice, the portal user's screen updates live. Satisfies MUST #1 directly.
-4. **Vendor bill PDF → draft bill** *(IDEAS.md §3.8)* — 2.5h. Upload a bill, LLM extracts lines, deterministic validation, human preview, creates a **draft** (never auto-posts). Real accounting pain point.
+4. **OCR invoice scanning** — 5h. Upload a scanned bill, extract structured data, review, auto-fill the form. Full spec in **§11b** below. Promoted to a headline feature: it runs fully client-side, so it *strengthens* the offline story rather than weakening it.
 5. **AI agent over the ledger** — 3h. Tools: `create_invoice`, `register_payment`, `get_profit_loss`, `get_balance_sheet`, `find_contact`, `list_unpaid_invoices`. Mutations gated behind confirmation. Queries like *"what was net profit last quarter?"* are trivially groundable because the ledger is structured.
 6. **Invoice/Payslip-style PDF** — 1.5h. Required-ish and tangible.
 7. **⌘K command palette** + **`/health` page** — 2h combined. Cheap polish that reads as finished.
 
 Pick **1, 2, 3** as certainties. 4–7 as reach.
+
+---
+
+## 11b. OCR invoice scanning
+
+Upload a scanned PDF or photo of a bill on any of the four transaction forms; the system extracts vendor, dates, line items and taxes, shows them in an editable review modal, and fills the form on confirmation. **Never auto-saves** — the user reviews, then saves separately.
+
+**Applies to:** Vendor Bill · Purchase Order · Customer Invoice · Sales Order (the last two map `vendorName` → Customer instead).
+
+### Pipeline
+
+```
+file → [digital PDF?] ──yes──→ pdf.js getTextContent()      ← instant, 100% accurate
+          │
+          no (scanned/image)
+          ▼
+      pdf.js render @2x → page images → Tesseract.js (WASM, PSM 6)
+          ▼
+      invoice-parser.js  — Indian GST regex/heuristics
+          ▼
+      review modal (editable, confidence-scored)
+          ▼
+      form-filler.js — fuzzy-match vendor → Contact Master, product → Product Master
+```
+
+### Three changes to the supplied spec
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **Try `page.getTextContent()` FIRST, OCR only as fallback.** The spec lists this as an edge case; make it the primary path. | Most vendor bills are digital PDFs. That path is instant, needs no WASM download, and is 100% accurate. OCR is for genuine scans and photos. |
+| 2 | **Bundle `tesseract.js` + `pdfjs-dist` via npm, never CDN.** Self-host the Tesseract language traineddata in `/public`. | The spec's CDN `<script>` tags would break the offline requirement (NICE #2) — the whole feature would fail with no internet, which is exactly when a shop floor needs it. |
+| 3 | **Parsed output creates a DRAFT and re-validates server-side.** OCR fills the form; the same Zod schemas and `postEntry()` rules apply on save. | Extraction is a convenience, never a bypass. An OCR misread must not be able to write an unbalanced or invalid document. |
+
+### Why this is a strong differentiator here
+
+It runs **entirely in the browser on WASM** — no cloud OCR API, no server round-trip, no API key. That means it works with the network unplugged, which turns a "nice feature" into direct evidence for the offline requirement. Demo line: *"this is optical character recognition running locally in the browser — watch, I'll turn the wifi off first."*
+
+### Data contract
+
+`ParsedInvoice { vendorName, vendorGSTIN, vendorAddress, invoiceNumber, invoiceDate, dueDate, lineItems[], subtotal, taxes[], totalAmount, confidence, rawText }`
+`LineItem { sno, description, hsnCode, quantity, unit, rate, amount }`
+`TaxDetail { name, rate, amount }` — CGST / SGST / IGST / GST
+
+### Module layout
+
+```
+frontend/lib/ocr/
+├── ocr-engine.js      pdfToImages(), extractDigitalText(), ocrMultiPage()
+├── invoice-parser.js  parseInvoice() — GSTIN, invoice no, dates, line table, taxes
+├── form-filler.js     fillForm() + per-form mapping configs + fuzzy matching
+└── ScanModal.jsx      upload → progress → editable review → Fill Form
+```
+
+### Validation rules in the review modal
+
+- Confidence badge: green ≥ 80 · amber ≥ 50 · red < 50, with a "verify carefully" warning under 50
+- ✅ marker on fields that matched an existing Contact or Product
+- Flag any row where `|qty × rate − amount| / amount > 5%` in amber
+- Unmatched vendor → "New vendor — not in system", offer to create it
+- No line items detected → warn and let the user add rows manually
+
+### Performance
+
+Resize images above 2000px wide before OCR · render PDF at 2× scale · PSM 6 (single block) · reuse the Tesseract worker across scans in a session (creation costs 2–3s) · skip OCR entirely for digital PDFs.
 
 ---
 
