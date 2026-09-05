@@ -48,3 +48,8 @@ venv/
 coverage/
 .turbo/
 *.tsbuildinfo
+
+# tests
+tests/.env.test
+test-results/
+playwright-report/

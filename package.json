@@ -1,0 +1,18 @@
+{
+  "name": "urban-furniture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:smoke": "npx playwright test tests/e2e/smoke",
+    "test:e2e": "npx playwright test tests/e2e",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:verify": "cd backend && npm run verify"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "dotenv": "^16.4.7",
+    "vitest": "^3.2.0"
+  }
+}
