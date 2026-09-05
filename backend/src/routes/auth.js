@@ -16,8 +16,10 @@ const publicUser = (u) => ({
 })
 
 // ─────────────────────────── signup ───────────────────────────
-// Self-service — always creates an Accountant. Admin accounts and Portal
-// Users are provisioned by an admin via POST /users, never through this route.
+// Self-service always creates the LEAST-privileged role, `user`. An admin
+// promotes them to Accountant (or links a contact for portal access) via
+// PUT /users/:id. Signup deliberately cannot choose its own role — letting the
+// client pick would be straightforward privilege escalation.
 router.post('/signup', validate(signupSchema), async (req, res, next) => {
   try {
     const { name, loginId, email, password } = req.body
@@ -29,12 +31,12 @@ router.post('/signup', validate(signupSchema), async (req, res, next) => {
 
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
-        data: { name, loginId, email, password: await bcrypt.hash(password, 10), role: 'accountant' },
+        data: { name, loginId, email, password: await bcrypt.hash(password, 10), role: 'user' },
       })
       await writeAuditLog(tx, {
         action: AUDIT_ACTIONS.user_registered,
         entity_type: 'user', entity_id: created.id,
-        new_value: { loginId, email, role: 'accountant' }, performed_by: created.id,
+        new_value: { loginId, email, role: 'user' }, performed_by: created.id,
       })
       return created
     })
