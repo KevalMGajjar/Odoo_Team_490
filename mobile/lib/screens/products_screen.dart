@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
+import '../widgets/app_logo.dart';
 import '../config/formatting.dart';
 import '../providers/data_provider.dart';
 import '../widgets/status_badge.dart';
@@ -51,7 +53,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ? const Center(
                     child: Text('No products found', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
                   )
-                : ListView.separated(
+                : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                     itemCount: products.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -79,7 +83,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                 color: AppTheme.brandLight,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.chair_rounded, color: AppTheme.brand, size: 24),
+                              child: const AppLogo(size: 22, tile: false, color: AppTheme.brand),
                             ),
                             // Name and price on one line, details and status
                             // on the next — the same shape as the invoice rows.
@@ -137,7 +141,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                         ),
                       );
                     },
-                  ),
+                  )),
           ),
         ],
       ),

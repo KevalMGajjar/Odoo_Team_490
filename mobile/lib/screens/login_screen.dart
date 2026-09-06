@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/app_logo.dart';
 import '../config/api_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/connectivity_provider.dart';
@@ -181,14 +182,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppTheme.brand, AppTheme.brandAccent],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(13),
                             boxShadow: [
                               BoxShadow(
                                 color: AppTheme.brand.withValues(alpha: 0.25),
@@ -197,34 +192,36 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.chair_rounded,
-                            color: AppTheme.textInvert,
-                            size: 28,
-                          ),
+                          child: const AppLogo(size: 56),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Urban Furniture',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.brand,
-                                letterSpacing: -0.4,
+                        // Flexible, because the tagline is wider than a 360px
+                        // phone leaves beside a 56px logo — the row overflowed
+                        // by 20 pixels there while looking fine at 412.
+                        const Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Urban Furniture',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.brand,
+                                  letterSpacing: -0.4,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Accounting & Invoicing • Offline-First',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: AppTheme.textMuted,
+                              Text(
+                                'Accounting & Invoicing',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppTheme.textMuted,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

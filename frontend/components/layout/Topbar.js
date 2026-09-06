@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { useTheme } from '@/lib/useTheme'
 import { CommandPalette } from './CommandPalette'
+import { Logo } from '@/components/ui/Logo'
 import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
 
 const ROLE_LABEL = { admin: 'Admin', accountant: 'Accountant', user: 'Portal User' }
@@ -48,7 +49,7 @@ export function Topbar({ onMenuClick }) {
       </button>
 
       <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
-        <span className="h-6 w-6 rounded-sm bg-brand" aria-hidden />
+        <Logo size={24} />
         <span className="hidden sm:inline text-sm font-semibold text-ink">Urban Furniture</span>
       </Link>
 

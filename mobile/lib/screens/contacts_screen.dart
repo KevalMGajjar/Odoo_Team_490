@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
 import '../providers/data_provider.dart';
 import '../widgets/status_badge.dart';
 
@@ -83,7 +84,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 ? const Center(
                     child: Text('No contacts found', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
                   )
-                : ListView.separated(
+                : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                     itemCount: contacts.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -153,7 +156,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ),
                       );
                     },
-                  ),
+                  )),
           ),
         ],
       ),

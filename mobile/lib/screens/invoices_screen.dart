@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
 import '../config/formatting.dart';
 import '../models/models.dart';
 import '../providers/data_provider.dart';
@@ -107,7 +108,9 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                       child: Text('No item lines available',
                           style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
                     )
-                  : ListView.separated(
+                  : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: inv.lines.length,
                       separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
@@ -131,7 +134,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                           ),
                         );
                       },
-                    ),
+                    )),
             ),
             const Divider(height: 24),
             Row(
@@ -262,7 +265,9 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                       child: Text('No item lines available',
                           style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted)),
                     )
-                  : ListView.separated(
+                  : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                       itemCount: bill.lines.length,
                       separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (ctx, i) {
@@ -286,7 +291,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                           ),
                         );
                       },
-                    ),
+                    )),
             ),
             const Divider(height: 24),
             Row(
@@ -425,7 +430,9 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                           style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
                         ),
                       )
-                    : ListView.separated(
+                    : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                         itemCount: filteredInvoices.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -510,7 +517,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                             ),
                           );
                         },
-                      ),
+                      )),
 
                 // Vendor Bills Tab
                 filteredBills.isEmpty
@@ -520,7 +527,9 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                           style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
                         ),
                       )
-                    : ListView.separated(
+                    : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
                         itemCount: filteredBills.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -605,7 +614,7 @@ class _InvoicesScreenState extends State<InvoicesScreen>
                             ),
                           );
                         },
-                      ),
+                      )),
               ],
             ),
           ),

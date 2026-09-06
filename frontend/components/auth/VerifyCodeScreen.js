@@ -1,5 +1,6 @@
 'use client'
 
+import { Logo } from '@/components/ui/Logo'
 import { FormField, TextInput } from '@/components/ui/FormField'
 import { Button } from '@/components/ui/Button'
 
@@ -24,7 +25,7 @@ export function VerifyCodeScreen({
     <div className="flex min-h-screen items-center justify-center bg-surface-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-2">
-          <span className="h-8 w-8 rounded-sm bg-brand" aria-hidden />
+          <Logo size={32} />
           <span className="text-lg font-semibold text-ink">Urban Furniture</span>
         </div>
 

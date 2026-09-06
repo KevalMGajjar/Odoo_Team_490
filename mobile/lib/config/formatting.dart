@@ -33,4 +33,12 @@ class Fmt {
     final parsed = DateTime.tryParse(iso);
     return parsed == null ? iso : date.format(parsed);
   }
+
+  /// `18 Jul` — for rows already under a "Recent" heading, where the year is
+  /// the least useful part and the first thing to cost a truncation.
+  static String dayShort(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final parsed = DateTime.tryParse(iso);
+    return parsed == null ? iso : shortDate.format(parsed);
+  }
 }

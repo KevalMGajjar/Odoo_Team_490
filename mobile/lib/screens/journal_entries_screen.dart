@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
 import '../config/formatting.dart';
 
 import '../models/models.dart';
@@ -93,7 +94,9 @@ class JournalEntriesScreen extends StatelessWidget {
             ),
 
             Expanded(
-              child: ListView.separated(
+              child: PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: entry.items.length,
                 separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (ctx, i) {
@@ -142,7 +145,7 @@ class JournalEntriesScreen extends StatelessWidget {
                     ),
                   );
                 },
-              ),
+              )),
             ),
             const Divider(height: 24),
             Row(
@@ -183,7 +186,9 @@ class JournalEntriesScreen extends StatelessWidget {
           ? const Center(
               child: Text('No journal entries cached', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
             )
-          : ListView.separated(
+          : PullToRefresh(
+                    child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
               itemCount: data.journalEntries.length,
               separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -284,7 +289,7 @@ class JournalEntriesScreen extends StatelessWidget {
                   ),
                 );
               },
-            ),
+            )),
     );
   }
 }

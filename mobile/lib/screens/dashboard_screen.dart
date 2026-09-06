@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
 import '../config/formatting.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
@@ -20,7 +21,8 @@ class DashboardScreen extends StatelessWidget {
 
     final currencyFmt = Fmt.currency;
 
-    return SingleChildScrollView(
+    return PullToRefresh(
+      child: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,16 +62,19 @@ class DashboardScreen extends StatelessWidget {
               final isWide = constraints.maxWidth > 700;
               final crossAxisCount = isWide ? 4 : 2;
 
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+              // A fixed height, not an aspect ratio. The card's content —
+              // label, figure, subtitle — is the same height whatever the
+              // screen width, but a ratio ties height to width: tuned to fit
+              // on a 412px phone it overflowed by 11 pixels on a 360px one.
+              return GridView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                // Sized to the content. At 1.18 each card carried roughly
-                // sixty pixels of empty space below its subtitle, which is the
-                // kind of slack that reads as unfinished rather than airy.
-                childAspectRatio: isWide ? 1.95 : 1.72,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                  mainAxisExtent: isWide ? 104 : 112,
+                ),
                 children: [
                   KpiCard(
                     title: 'Receivables',
@@ -270,7 +275,7 @@ class DashboardScreen extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${inv.customerName ?? 'Customer'} • ${Fmt.day(inv.invoiceDate)}',
+                                      '${inv.customerName ?? 'Customer'} • ${Fmt.dayShort(inv.invoiceDate)}',
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         color: AppTheme.textMuted,
@@ -299,6 +304,7 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

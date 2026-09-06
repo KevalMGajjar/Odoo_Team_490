@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../widgets/pull_to_refresh.dart';
 import '../config/formatting.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
@@ -17,7 +18,8 @@ class PortalScreen extends StatelessWidget {
     final user = auth.user;
     final fmt = Fmt.currency;
 
-    return SingleChildScrollView(
+    return PullToRefresh(
+      child: SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 96),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,6 +222,7 @@ class PortalScreen extends StatelessWidget {
               },
             ),
         ],
+      ),
       ),
     );
   }
