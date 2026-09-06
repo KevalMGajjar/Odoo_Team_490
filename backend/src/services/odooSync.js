@@ -429,7 +429,49 @@ export async function syncAllMasters() {
  * postEntry() has committed, so a failure here never means the ledger write
  * failed — only that Odoo does not yet reflect it.
  */
+/** Odoo's wording when an id points at something that is no longer there. */
+const STALE_REFERENCE = /does not exist or has been deleted/i
+
+/**
+ * Forget every Odoo id we are holding.
+ *
+ * Called when Odoo tells us a reference is dead, which in practice means the
+ * database was dropped and rebuilt underneath a running backend. When that
+ * happens ids are not individually stale — every one of them is void at once,
+ * including the taxes cached in this process and the odooId columns on every
+ * master. Re-syncing then recreates each on demand.
+ */
+async function forgetOdooIds() {
+  taxCache.clear()
+  currencyCache.clear()
+  await prisma.$transaction([
+    prisma.contact.updateMany({ data: { odooId: null } }),
+    prisma.product.updateMany({ data: { odooId: null } }),
+    prisma.chartOfAccount.updateMany({ data: { odooId: null } }),
+    prisma.journal.updateMany({ data: { odooId: null } }),
+  ])
+}
+
+/**
+ * Push one entry, recovering once if Odoo has been rebuilt under us.
+ *
+ * The tax ids were cached for the life of the process and the master ids are
+ * stored in our own columns, so neither notices that the instance they refer
+ * to has been replaced. Every invoice then failed with "record does not exist"
+ * while the masters themselves re-synced happily, because those are matched by
+ * reference rather than by id.
+ */
 export async function syncJournalEntry(entryId) {
+  try {
+    return await pushJournalEntry(entryId)
+  } catch (err) {
+    if (!STALE_REFERENCE.test(err.message ?? '')) throw err
+    await forgetOdooIds()
+    return pushJournalEntry(entryId)
+  }
+}
+
+async function pushJournalEntry(entryId) {
   const entry = await prisma.journalEntry.findUniqueOrThrow({
     where: { id: entryId },
     include: {
