@@ -99,7 +99,13 @@ async function main() {
 
       // ─────────── fixtures: everything else is fully test-owned ───────────
       const admin = await tx.user.create({
-        data: { name: 'Doc Test Admin', email: `doctest-${RUN}@test.local`, password: 'x', role: 'admin' },
+        data: {
+          name: 'Doc Test Admin',
+          loginId: `dt${String(RUN).slice(-8)}`,
+          email: `doctest-${RUN}@test.local`,
+          password: 'x',
+          role: 'admin',
+        },
       })
 
       const inr = await tx.currency.findFirst({ where: { isBase: true } })
@@ -367,11 +373,22 @@ async function main() {
       const agg = await tx.journalItem.aggregate({ _sum: { debit: true, credit: true } })
       assertEq(money(agg._sum.debit ?? 0), money(agg._sum.credit ?? 0), 'Trial balance: Σ debit == Σ credit')
 
-      const assets = await typeTotal(tx, 'asset', 'debit')
+      // Every account type, not five of eight. The chart split bank and cash
+      // out of asset and other_expense out of expense when it went to the
+      // eight types the wireframes specify; leaving them out of the identity
+      // means asserting that the company holds no bank balance.
+      const assets = money(
+        (await typeTotal(tx, 'asset', 'debit'))
+          .plus(await typeTotal(tx, 'bank', 'debit'))
+          .plus(await typeTotal(tx, 'cash', 'debit')),
+      )
       const liabilities = await typeTotal(tx, 'liability', 'credit')
       const capital = await typeTotal(tx, 'capital', 'credit')
       const income = await typeTotal(tx, 'income', 'credit')
-      const expense = await typeTotal(tx, 'expense', 'debit')
+      const expense = money(
+        (await typeTotal(tx, 'expense', 'debit'))
+          .plus(await typeTotal(tx, 'other_expense', 'debit')),
+      )
       const earnings = money(income.minus(expense))
 
       assertEq(assets, money(liabilities.plus(capital).plus(earnings)),

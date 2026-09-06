@@ -55,7 +55,13 @@ async function main() {
       await tx.journal.create({ data: { name: 'V Misc', type: 'miscellaneous', code: 'VMSC' } })
 
       const user = await tx.user.create({
-        data: { name: 'Voucher Tester', email: `vt-${Date.now()}@test.local`, password: 'x', role: 'admin' },
+        data: {
+          name: 'Voucher Tester',
+          loginId: `vt${Date.now().toString().slice(-8)}`,
+          email: `vt-${Date.now()}@test.local`,
+          password: 'x',
+          role: 'admin',
+        },
       })
 
       // ── 1. financial year ──
@@ -187,7 +193,13 @@ async function main() {
       assert(banks.some((b) => b.id === bank.id), 'flagged bank account is included in the filter')
       assert(banks.some((b) => b.id === cash.id), 'flagged cash account is included in the filter')
       assert(!banks.some((b) => b.id === rent.id), 'expense account excluded from the filter')
-      assert(banks.every((b) => b.type === 'asset'), 'every returned account is an asset account')
+      // Bank and cash are their own account types now, not sub-kinds of
+      // asset — the chart went to eight types to match the wireframes. This
+      // asserted the old five-type shape and had been failing against any
+      // database with a seeded bank account in it.
+      const assetLike = ['asset', 'bank', 'cash']
+      assert(banks.every((b) => assetLike.includes(b.type)),
+        'every returned account is an asset, bank or cash account')
 
       const last = await getLastCashBankAccount(tx, user.id, 'BReceipt')
       assert(last?.id === bank.id, 'last account used is remembered per voucher type')

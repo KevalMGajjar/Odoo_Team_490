@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { prisma } from '../lib/prisma.js'
 import { seedMasters } from './seedMasters.js'
+import { generateActivity } from './seedActivity.js'
 import { postEntry } from '../services/ledger.js'
 import { postVendorBill } from '../services/bill.js'
 import { postCustomerInvoice } from '../services/invoice.js'
@@ -30,11 +31,30 @@ const money2 = (v) => money(v).toFixed(2)
  * are written as a reference year and shifted; nothing is ever future-dated.
  */
 const TODAY = new Date()
-const FY_START_YEAR = TODAY.getUTCMonth() >= 3 ? TODAY.getUTCFullYear() : TODAY.getUTCFullYear() - 1
+
+/**
+ * Every date is shifted by whole months so the newest lands on the month the
+ * seed is run in, which keeps reports opening on a populated window whatever
+ * day that is.
+ *
+ * The previous version rewrote the year outright, to the start of the current
+ * financial year. That works for data confined to one April-to-December run,
+ * which the hand-written seed was — but it collapses anything longer: eighteen
+ * months of generated trading all landed in a single year, out of order, with
+ * January to March appearing before the April they follow.
+ */
+const REFERENCE_END = { y: 2026, m: 9 }
+const MONTH_SHIFT =
+  (TODAY.getUTCFullYear() - REFERENCE_END.y) * 12 + (TODAY.getUTCMonth() + 1 - REFERENCE_END.m)
 
 const day = (s) => {
-  const d = new Date(`${s.replace(/^\d{4}/, String(FY_START_YEAR))}T00:00:00Z`)
-  return d > TODAY ? TODAY : d
+  const [y, m, d] = s.split('-').map(Number)
+  const shifted = m - 1 + MONTH_SHIFT
+  const date = new Date(Date.UTC(y + Math.floor(shifted / 12), ((shifted % 12) + 12) % 12, 1))
+  // Clamp the day so the 31st of a shifted month never rolls into the next one.
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+  date.setUTCDate(Math.min(d, lastDay))
+  return date > TODAY ? TODAY : date
 }
 
 async function truncateAll() {
@@ -59,6 +79,14 @@ const mkLine = (product, quantity, unitPrice, accountId, analyticId = null) => {
     subtotal: subtotal.toFixed(2),
     analyticAccountId: analyticId,
   }
+}
+
+/** Net-30, computed rather than spelled. Bumping the month in the string gave
+ *  a thirteenth month for every December bill, which Prisma rejected outright. */
+function plusDays(isoDate, days) {
+  const d = new Date(`${isoDate}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d
 }
 
 async function main() {
@@ -97,17 +125,13 @@ async function main() {
   const INCOME_ACC = A['4000'].id
   const EXPENSE_ACC = A['5000'].id
 
-  // ─────────────── purchases ───────────────
-  const purchases = [
-    ['2025-04-08', 'Azure Furniture Pvt Ltd', [['Office Chair', 40, 2750], ['Study Desk', 32, 4300]]],
-    ['2025-04-22', 'Rahul Sharma Timber',     [['Wooden Dining Table', 12, 11200], ['Coffee Table', 25, 3100]]],
-    ['2025-05-09', 'Azure Furniture Pvt Ltd', [['Office Chair', 30, 2900], ['Ergonomic Mesh Chair', 15, 5500]]],
-    ['2025-05-27', 'Kishan Auto Parts',       [['Bookshelf (5 Tier)', 30, 4050], ['Shoe Cabinet', 20, 2450]]],
-    ['2025-06-11', 'Rahul Sharma Timber',     [['Wardrobe (3 Door)', 8, 15800], ['Queen Bed Frame', 10, 13500]]],
-    ['2025-06-24', 'Azure Furniture Pvt Ltd', [['3-Seater Fabric Sofa', 6, 20500], ['Bar Stool', 40, 1650]]],
-    ['2025-07-07', 'Kishan Auto Parts',       [['Bedside Table', 35, 2050], ['Coffee Table', 20, 3250]]],
-  ]
+  // ─────────────── generated activity ───────────────
+  // Eighteen months of trading, generated deterministically so every run
+  // produces the same books. See seedActivity.js for why it is generated
+  // rather than listed.
+  const { purchases, sales, vouchers } = generateActivity()
 
+  // ─────────────── purchases ───────────────
   let n = 0
   for (const [date, vendorName, lines] of purchases) {
     n += 1
@@ -117,7 +141,7 @@ async function main() {
           number: await nextNumber(tx, { code: 'BILL', prefix: 'BILL', date: day(date) }),
           vendorId: C[vendorName].id,
           billDate: day(date),
-          dueDate: day(date.replace(/^(\d{4})-(\d{2})/, (_, y, mth) => `${y}-${String(Number(mth) + 1).padStart(2, '0')}`)),
+          dueDate: plusDays(date, 30),
           currencyId: CUR.INR.id,
           lines: { create: lines.map(([p, q, r]) => mkLine(P[p], q, r, INV_ACC, AN['Workshop'].id)) },
         },
@@ -128,24 +152,6 @@ async function main() {
   log(`  vendor bills      ${purchases.length}  (stock received, moving-average cost built)`)
 
   // ─────────────── sales ───────────────
-  // Sales volume is set so the business is genuinely profitable across the year —
-  // a demo that opens on a loss invites the wrong question.
-  const sales = [
-    ['2025-05-02', 'Nimesh Pathak',         [['Office Chair', 4], ['Delivery Service', 1]]],
-    ['2025-05-18', 'Skyline Interiors LLP', [['Study Desk', 8], ['Office Chair', 8], ['Assembly Service', 1]]],
-    ['2025-05-29', 'Gateway Hotels Ltd',    [['Bedside Table', 15], ['Study Desk', 6]]],
-    ['2025-06-05', 'Meera Joshi',           [['Wooden Dining Table', 2], ['Bar Stool', 8]]],
-    ['2025-06-19', 'Gateway Hotels Ltd',    [['Bedside Table', 12], ['Queen Bed Frame', 6], ['Delivery Service', 1]]],
-    ['2025-06-27', 'Skyline Interiors LLP', [['Office Chair', 14], ['Coffee Table', 8], ['Assembly Service', 1]]],
-    ['2025-07-02', 'Skyline Interiors LLP', [['Ergonomic Mesh Chair', 10], ['Coffee Table', 6]]],
-    ['2025-07-15', 'Nimesh Pathak',         [['Bookshelf (5 Tier)', 4], ['Shoe Cabinet', 3]]],
-    ['2025-07-24', 'Gateway Hotels Ltd',    [['Wooden Dining Table', 4], ['Bar Stool', 16], ['Delivery Service', 1]]],
-    ['2025-07-28', 'Meera Joshi',           [['3-Seater Fabric Sofa', 2], ['Assembly Service', 1]]],
-    ['2025-08-06', 'Gateway Hotels Ltd',    [['Wardrobe (3 Door)', 3], ['Office Chair', 12]]],
-    ['2025-08-14', 'Skyline Interiors LLP', [['Bookshelf (5 Tier)', 12], ['Study Desk', 6], ['Assembly Service', 1]]],
-    ['2025-08-22', 'Meera Joshi',           [['Coffee Table', 5], ['Bedside Table', 6]]],
-  ]
-
   const invoiceIds = []
   n = 0
   for (const [date, customerName, lines] of sales) {
@@ -227,9 +233,12 @@ async function main() {
   log(`  customer receipts ${n}  (${paid} settled, ${partial} part-paid, 2 left outstanding)`)
 
   // ─────────────── vendor payments ───────────────
-  const openBills = await prisma.vendorBill.findMany({
-    where: { state: 'posted' }, orderBy: { billDate: 'asc' }, take: 5,
+  // Settle all but the most recent few, so payables carries a realistic
+  // balance instead of either nothing or everything.
+  const allBills = await prisma.vendorBill.findMany({
+    where: { state: 'posted' }, orderBy: { billDate: 'asc' },
   })
+  const openBills = allBills.slice(0, Math.max(0, allBills.length - 4))
   n = 0
   for (const bill of openBills) {
     n += 1
@@ -249,22 +258,11 @@ async function main() {
   log(`  vendor payments   ${n}`)
 
   // ─────────────── vouchers (the five entry screens) ───────────────
-  const vouchers = [
-    ['BPayment', '2025-05-31', A['1010'].id, A['5100'].id, 45000,  'RENT-05', 'Showroom rent — May 2025',       AN['Showroom Operations'].id],
-    ['BPayment', '2025-06-30', A['1010'].id, A['5100'].id, 45000,  'RENT-06', 'Showroom rent — June 2025',      AN['Showroom Operations'].id],
-    ['BPayment', '2025-07-31', A['1010'].id, A['5100'].id, 45000,  'RENT-07', 'Showroom rent — July 2025',      AN['Showroom Operations'].id],
-    ['BPayment', '2025-05-31', A['1010'].id, A['5200'].id, 140000, 'SAL-05',  'Staff salaries — May 2025',      AN['Showroom Operations'].id],
-    ['BPayment', '2025-06-30', A['1010'].id, A['5200'].id, 140000, 'SAL-06',  'Staff salaries — June 2025',     AN['Showroom Operations'].id],
-    ['CPayment', '2025-06-14', A['1000'].id, A['5300'].id, 8600,   'FRT-11',  'Local delivery charges',         AN['Logistics'].id],
-    ['CPayment', '2025-07-09', A['1000'].id, A['5300'].id, 12400,  'FRT-12',  'Outstation freight — Mumbai',    AN['Logistics'].id],
-    ['CReceipt', '2025-07-18', A['1000'].id, A['4100'].id, 15000,  'MISC-01', 'Scrap timber sale',              null],
-  ]
-
   for (const [type, date, cashBankId, partyAccId, amount, ref, narration, analytic] of vouchers) {
     await prisma.$transaction(async (tx) => {
       await postVoucher(tx, {
-        voucherType: type, date: day(date), cashBankAccountId: cashBankId,
-        lines: [{ accountId: partyAccId, amount, analyticAccountId: analytic }],
+        voucherType: type, date: day(date), cashBankAccountId: A[cashBankId].id,
+        lines: [{ accountId: A[partyAccId].id, amount, analyticAccountId: analytic ? AN[analytic].id : null }],
         reference: ref, narration, userId: U.accountant.id,
       })
     }, { timeout: 60000 })
@@ -286,10 +284,17 @@ async function main() {
   const entries = await prisma.journalEntry.count()
   const balanced = dr.equals(cr)
 
-  const stock = await prisma.product.findMany({
-    where: { trackInventory: true }, select: { onHandQty: true, avgCost: true },
-  })
-  const stockValue = stock.reduce((a, p) => a.plus(D(p.onHandQty).times(D(p.avgCost))), D(0))
+  // Sum the valuation layers, not quantity times average cost.
+  //
+  // `avgCost` is a stored rounding of a running average — 13,800.3333 for a
+  // product bought at three different prices — so multiplying it back by the
+  // quantity reintroduces exactly the rounding the layers were keeping out.
+  // At sixty entries that residue happened to land on zero; at three hundred
+  // it showed up as a two-paisa mismatch against a ledger that was in fact
+  // correct. The layers are what the inventory valuation report totals, and
+  // they tie to the control account to the paisa.
+  const layers = await prisma.stockValuationLayer.aggregate({ _sum: { value: true } })
+  const stockValue = D(layers._sum.value ?? 0)
 
   const invBal = await prisma.journalItem.aggregate({
     where: { accountId: INV_ACC, entry: { state: 'posted' } },

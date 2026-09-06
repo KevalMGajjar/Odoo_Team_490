@@ -209,7 +209,11 @@ async function main() {
       const val = await valuationAsOf(tx, { asOf: today })
       const line = val.lines.find((l) => l.productId === chair.id)
       assertEq(line.quantity, '15', 'valuation rebuilt from layers: quantity')
-      assertEq(val.totalValue, '1650', 'valuation rebuilt from layers: value (15 × 110)')
+      // This product's own line, not the whole valuation. Asserting the global
+      // total meant asserting the rest of the database was empty, which only
+      // held while the seed happened to date every layer after this harness's
+      // `asOf`. It is the per-product figure this section is actually testing.
+      assertEq(line.value, '1650', 'valuation rebuilt from layers: value (15 × 110)')
       assertEq(line.maintainedQty, line.quantity,
         'maintained product.onHandQty matches the recomputed layer history')
 
@@ -229,13 +233,19 @@ async function main() {
         ],
       })
 
+      // This harness posts to its own T1300, not the real Inventory account,
+      // so the comparison has to be against this product's valuation line
+      // rather than the whole company's. Comparing a private test account to a
+      // global total only balances on an empty database — which is what this
+      // assertion was quietly relying on, and stopped being true the moment
+      // the seed carried a year and a half of stock.
       const invAgg = await tx.journalItem.aggregate({
-        where: { accountId: inventory.id },
+        where: { accountId: inventory.id, entry: { state: 'posted', date: { lte: today } } },
         _sum: { debit: true, credit: true },
       })
       const invBalance = money(D(invAgg._sum.debit ?? 0).minus(D(invAgg._sum.credit ?? 0)))
-      assertEq(invBalance, val.totalValue,
-        'Inventory control account balance == inventory valuation')
+      assertEq(invBalance, line.value,
+        "test inventory account balance == that product's valuation")
 
       // ─────────── 7. stock adjustment ───────────
       section('7. Stock adjustment')
