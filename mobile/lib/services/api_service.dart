@@ -223,21 +223,21 @@ class ApiService {
   /// Parallel fetch from standard REST endpoints
   Future<SyncBulkResponse> _fetchFromRestEndpoints() async {
     final results = await Future.wait([
-      _safeGetList('/contacts?pageSize=500'),
-      _safeGetList('/products?pageSize=500'),
-      _safeGetList('/accounts?pageSize=500'),
-      _safeGetList('/journals?pageSize=500'),
-      _safeGetList('/taxes?pageSize=500'),
-      _safeGetList('/currencies?pageSize=500'),
-      _safeGetList('/currency-rates?pageSize=500'),
-      _safeGetList('/purchase-orders?pageSize=500'),
-      _safeGetList('/sales-orders?pageSize=500'),
-      _safeGetList('/bills?pageSize=500'),
-      _safeGetList('/invoices?pageSize=500'),
-      _safeGetList('/payments?pageSize=500'),
-      _safeGetList('/journal-entries?pageSize=500'),
-      _safeGetList('/analytic-accounts?pageSize=500'),
-      _safeGetList('/budgets?pageSize=500'),
+      _safeGetList('/contacts'),
+      _safeGetList('/products'),
+      _safeGetList('/accounts'),
+      _safeGetList('/journals'),
+      _safeGetList('/taxes'),
+      _safeGetList('/currencies'),
+      _safeGetList('/currency-rates'),
+      _safeGetList('/purchase-orders'),
+      _safeGetList('/sales-orders'),
+      _safeGetList('/bills'),
+      _safeGetList('/invoices'),
+      _safeGetList('/payments'),
+      _safeGetList('/journal-entries'),
+      _safeGetList('/analytic-accounts'),
+      _safeGetList('/budgets'),
     ]);
 
     final rawData = <String, List<Map<String, dynamic>>>{
@@ -264,21 +264,39 @@ class ApiService {
     );
   }
 
+  /// Every page, not the first one.
+  ///
+  /// These calls asked for `pageSize=500` and the API caps a page at 200, so a
+  /// collection larger than that was silently cut off — the ledger synced 200
+  /// of 327 entries and nothing anywhere said so. A truncated cache is worse
+  /// than an empty one: totals computed from it look plausible and are wrong.
   Future<List<Map<String, dynamic>>> _safeGetList(String path) async {
+    const pageSize = 200;
+    final joiner = path.contains('?') ? '&' : '?';
+    final all = <Map<String, dynamic>>[];
+
     try {
-      final res = await _dio.get(path);
-      final data = res.data;
-      if (data is Map<String, dynamic>) {
-        final rows = data['rows'] ?? data['data'] ?? data['items'];
-        if (rows is List) {
-          return rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      for (var page = 1; page <= 50; page++) {
+        final res = await _dio.get('$path${joiner}page=$page&pageSize=$pageSize');
+        final data = res.data;
+        List<dynamic>? rows;
+        int? total;
+        if (data is Map<String, dynamic>) {
+          rows = (data['rows'] ?? data['data'] ?? data['items']) as List<dynamic>?;
+          total = data['total'] as int?;
+        } else if (data is List) {
+          rows = data;
         }
-      } else if (data is List) {
-        return data.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+        if (rows == null || rows.isEmpty) break;
+        all.addAll(rows.map((r) => Map<String, dynamic>.from(r as Map)));
+        // A short page is the last page; `total` ends it early when given.
+        if (rows.length < pageSize) break;
+        if (total != null && all.length >= total) break;
       }
-      return [];
+      return all;
     } catch (_) {
-      return [];
+      // Whatever arrived before the failure is still better than nothing.
+      return all;
     }
   }
 

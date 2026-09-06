@@ -85,27 +85,33 @@ class DataProvider extends ChangeNotifier {
 
   // ─────────────────────────── Computed KPIs ───────────────────────────
 
-  /// Total customer receivables (sum of unpaid invoice balances)
-  double get totalReceivables {
+  /// Debtors (1100) — what we are owed.
+  double get totalReceivables => _controlBalance('1100', debitPositive: true);
+
+  /// Balance on a control account, read from the cached ledger.
+  ///
+  /// The web dashboard reads these two figures from the Creditors and Debtors
+  /// accounts; this app was summing unpaid documents instead. Usually the same
+  /// number — but a journal voucher can credit Creditors with no vendor bill
+  /// behind it, and a ₹15,000 rent accrual made the two screens disagree by
+  /// exactly that. The ledger is the system's source of truth, so both sides
+  /// now ask it rather than approximating it from documents.
+  double _controlBalance(String code, {required bool debitPositive}) {
     double total = 0;
-    for (final inv in _customerInvoices) {
-      if (inv.state == 'posted' && inv.settleState != 'paid') {
-        total += double.tryParse(inv.amountResidual) ?? 0;
+    for (final entry in _journalEntries) {
+      if (entry.state != 'posted') continue;
+      for (final item in entry.items) {
+        if (item.accountCode != code) continue;
+        final dr = double.tryParse(item.debit) ?? 0;
+        final cr = double.tryParse(item.credit) ?? 0;
+        total += debitPositive ? dr - cr : cr - dr;
       }
     }
     return total;
   }
 
-  /// Total vendor payables (sum of unpaid bill balances)
-  double get totalPayables {
-    double total = 0;
-    for (final bill in _vendorBills) {
-      if (bill.state == 'posted' && bill.settleState != 'paid') {
-        total += double.tryParse(bill.amountResidual) ?? 0;
-      }
-    }
-    return total;
-  }
+  /// Creditors (2000) — what we owe.
+  double get totalPayables => _controlBalance('2000', debitPositive: false);
 
   /// Total invoiced sales
   double get totalSalesInvoiced {

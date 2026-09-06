@@ -261,7 +261,7 @@ class CustomerInvoice {
         id: json['id'] as String,
         number: json['number'] as String,
         customerId: json['customerId'] ?? json['customer_id'] ?? '',
-        customerName: json['customer']?['name'] as String?,
+        customerName: (json['customer']?['name'] ?? json['customerName']) as String?,
         invoiceDate: _dateStr(json['invoiceDate'] ?? json['invoice_date']),
         dueDate: _dateStr(json['dueDate'] ?? json['due_date']),
         state: json['state'] as String? ?? 'draft',
@@ -370,7 +370,7 @@ class VendorBill {
         id: json['id'] as String,
         number: json['number'] as String,
         vendorId: json['vendorId'] ?? json['vendor_id'] ?? '',
-        vendorName: json['vendor']?['name'] as String?,
+        vendorName: (json['vendor']?['name'] ?? json['vendorName']) as String?,
         billDate: _dateStr(json['billDate'] ?? json['bill_date']),
         dueDate: _dateStr(json['dueDate'] ?? json['due_date']),
         state: json['state'] as String? ?? 'draft',
@@ -472,7 +472,7 @@ class Payment {
         number: json['number'] as String,
         direction: json['direction'] as String,
         partnerId: json['partnerId'] ?? json['partner_id'] ?? '',
-        partnerName: json['partner']?['name'] as String?,
+        partnerName: (json['partner']?['name'] ?? json['partnerName']) as String?,
         journalName: json['journal']?['name'] as String?,
         paymentDate: _dateStr(json['paymentDate'] ?? json['payment_date']),
         amount: _str(json['amount']),
@@ -521,7 +521,7 @@ class PurchaseOrder {
         id: json['id'] as String,
         number: json['number'] as String,
         vendorId: json['vendorId'] ?? json['vendor_id'] ?? '',
-        vendorName: json['vendor']?['name'] as String?,
+        vendorName: (json['vendor']?['name'] ?? json['vendorName']) as String?,
         orderDate: json['orderDate'] ?? json['order_date'] ?? '',
         state: json['state'] as String? ?? 'draft',
         untaxed: _str(json['untaxed']),
@@ -571,7 +571,7 @@ class SalesOrder {
         id: json['id'] as String,
         number: json['number'] as String,
         customerId: json['customerId'] ?? json['customer_id'] ?? '',
-        customerName: json['customer']?['name'] as String?,
+        customerName: (json['customer']?['name'] ?? json['customerName']) as String?,
         orderDate: json['orderDate'] ?? json['order_date'] ?? '',
         state: json['state'] as String? ?? 'draft',
         untaxed: _str(json['untaxed']),
@@ -678,9 +678,14 @@ class JournalItem {
 
   factory JournalItem.fromJson(Map<String, dynamic> json) => JournalItem(
         id: json['id'] as String,
-        accountName: json['account']?['name'] as String?,
-        accountCode: json['account']?['code'] as String?,
-        partnerName: json['partner']?['name'] as String?,
+        // Two shapes reach this: the API nests the account, while toJson()
+        // flattens it for Hive. Reading only the nested form meant every code
+        // came back null after a restart — the values survived the cache and
+        // were dropped on the way out of it, which is invisible until
+        // something is computed from them.
+        accountName: (json['account']?['name'] ?? json['accountName']) as String?,
+        accountCode: (json['account']?['code'] ?? json['accountCode']) as String?,
+        partnerName: (json['partner']?['name'] ?? json['partnerName']) as String?,
         label: json['label'] as String?,
         debit: _str(json['debit']),
         credit: _str(json['credit']),
