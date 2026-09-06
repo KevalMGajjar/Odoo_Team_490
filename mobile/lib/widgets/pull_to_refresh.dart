@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../config/api_config.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/data_provider.dart';
@@ -39,18 +40,31 @@ class PullToRefresh extends StatelessWidget {
 
     if (auth.user == null || sync.isSyncing) return;
 
-    final ok = await sync.syncAll(userId: auth.user!.id, role: auth.user!.role);
-    if (ok) data.loadFromStorage();
+    // A pull always ends in a message. Returning quietly on failure looked
+    // exactly like the gesture not being wired up at all — which is what it
+    // was reported as — and a throw from syncAll left the spinner to be
+    // dismissed by the framework with nothing said either way.
+    bool ok = false;
+    try {
+      ok = await sync.syncAll(userId: auth.user!.id, role: auth.user!.role);
+      if (ok) data.loadFromStorage();
+    } catch (_) {
+      ok = false;
+    }
 
-    // Offline is the expected case for this app rather than an error, so it
-    // says so plainly instead of showing a failure.
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not reach the server — showing cached data'),
-          duration: Duration(seconds: 2),
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(ok
+              ? 'Updated from ${ApiConfig.baseUrl}'
+              // Offline is a normal state for this app, not an error — but the
+              // address is named, because a wrong one looks identical to a
+              // server that is down.
+              : 'Could not reach ${ApiConfig.baseUrl} — showing cached data'),
+          duration: const Duration(seconds: 3),
         ),
       );
-    }
   }
 }

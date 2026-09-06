@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/server_settings.dart';
 import '../providers/auth_provider.dart';
 import '../providers/connectivity_provider.dart';
 import '../providers/data_provider.dart';
@@ -160,9 +161,8 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
             onSelected: (val) {
-              if (val == 'logout') {
-                auth.logout();
-              }
+              if (val == 'server') showServerSettings(context);
+              if (val == 'logout') auth.logout();
             },
             itemBuilder: (ctx) => [
               PopupMenuItem(
@@ -182,6 +182,19 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
               const PopupMenuDivider(),
+              // The server address is here as well as on the login screen: it
+              // is baked in at build time and changes with every network the
+              // machine joins, and being signed in is exactly when you notice.
+              const PopupMenuItem(
+                value: 'server',
+                child: Row(
+                  children: [
+                    Icon(Icons.dns_outlined, size: 16, color: AppTheme.textMuted),
+                    SizedBox(width: 8),
+                    Text('Server settings', style: TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(

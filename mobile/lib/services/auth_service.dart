@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/models.dart';
@@ -117,18 +118,22 @@ class AuthService {
 
   /// Sign out: clear token & cached auth session, while PRESERVING offline ERP cache.
   Future<void> logout() async {
-    try {
-      await _apiService.logout();
-    } catch (_) {}
-
+    // Local state first, and never wait on the network.
+    //
+    // This used to await the server call. Offline — which for this app is a
+    // normal state, not an error — that is a ten-second connect timeout during
+    // which the button does nothing, so the session looks impossible to end.
+    // An offline-first app has to be able to sign out with no network at all;
+    // the server is told as a courtesy, not as a precondition.
     _currentUser = null;
     _token = null;
-    _apiService.setToken(null);
 
     if (Hive.isBoxOpen(_authBoxName)) {
       final authBox = Hive.box<String>(_authBoxName);
       await authBox.clear();
     }
+
+    unawaited(_apiService.logout());
 
     // Offline-first: the cached ERP data deliberately survives logout, so the
     // same user signing back in sees their records instantly even with no

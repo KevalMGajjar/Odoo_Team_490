@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/server_settings.dart';
 import '../config/api_config.dart';
 import '../providers/auth_provider.dart';
 import '../providers/connectivity_provider.dart';
@@ -84,61 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _handleLogin();
   }
 
-  void _showServerSettings() {
-    final urlController = TextEditingController(text: ApiConfig.baseUrl);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('API Server URL', style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Set backend host for emulator (10.0.2.2:4000), physical device (LAN IP:4000), or desktop/web (127.0.0.1:4000).',
-              style: TextStyle(fontSize: 12.5, color: AppTheme.textMuted),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: urlController,
-              decoration: const InputDecoration(
-                labelText: 'BASE URL',
-                hintText: 'http://127.0.0.1:4000',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              // A saved URL survives reinstalls of the app's data and overrides
-              // the platform default, so there has to be a way back to it.
-              ApiConfig.clearCustomBaseUrl();
-              Navigator.pop(ctx);
-              setState(() {});
-              context.read<ConnectivityProvider>().checkNow();
-            },
-            child: const Text('Use default'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              ApiConfig.setCustomBaseUrl(urlController.text.trim());
-              Navigator.pop(ctx);
-              setState(() {});
-              context.read<ConnectivityProvider>().checkNow();
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
+  void _showServerSettings() => showServerSettings(context);
 
   @override
   Widget build(BuildContext context) {
