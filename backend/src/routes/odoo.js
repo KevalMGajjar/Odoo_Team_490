@@ -53,9 +53,16 @@ router.post('/sync-entry/:id', verifyJWT, adminOnly, requireErpEnabled, async (r
 /** Bulk-sync every posted entry that isn't already synced. Stops on nothing — partial failures are recorded per-row, not thrown. */
 router.post('/sync-all-entries', verifyJWT, adminOnly, requireErpEnabled, async (req, res, next) => {
   try {
+    // Bounded. Each entry is several XML-RPC round trips, so pushing a full
+    // ledger in one request means one HTTP call holding a connection through
+    // hundreds of them — which is how a 324-entry sync took the process down
+    // with it, having already written a hundred of them to Odoo. The caller
+    // loops instead, and every batch that finishes is progress that survives.
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 200)
     const pending = await prisma.journalEntry.findMany({
       where: { state: 'posted', odooSyncStatus: { in: ['not_synced', 'pending', 'failed'] } },
       select: { id: true, number: true },
+      take: limit,
     })
 
     const results = []

@@ -124,10 +124,25 @@ async function main() {
   console.log(`\n${C.b}journal entries${C.x}`)
   note('one Odoo write per entry — this takes a while')
   const t0 = Date.now()
-  const e = await fetch(`${API}/odoo/sync-all-entries`, { method: 'POST', headers: H }).then((r) => r.json())
-  const failures = (e.results ?? []).filter((r) => !r.ok)
-  say('attempted', e.total ?? 0)
-  say('succeeded', e.succeeded ?? 0)
+  // One batch at a time, until nothing is left. A single request covering the
+  // whole ledger holds a connection through hundreds of XML-RPC round trips,
+  // and losing it loses the report of what had already been written.
+  let attempted = 0
+  let succeeded = 0
+  const failures = []
+  for (let batch = 0; batch < 100; batch += 1) {
+    const e = await fetch(`${API}/odoo/sync-all-entries?limit=25`, { method: 'POST', headers: H })
+      .then((r) => r.json())
+    if (!e.total) break
+    attempted += e.total
+    succeeded += e.succeeded ?? 0
+    failures.push(...(e.results ?? []).filter((r) => !r.ok))
+    note(`batch ${batch + 1}: ${e.succeeded ?? 0} of ${e.total} pushed`)
+    // Every entry in a batch failing means the next batch will too.
+    if (e.succeeded === 0) break
+  }
+  say('attempted', attempted)
+  say('succeeded', succeeded)
   say('took', `${((Date.now() - t0) / 1000).toFixed(1)}s`)
   for (const f of failures.slice(0, 5)) console.log(`  ${C.r}x${C.x}    ${f.number}: ${f.error}`)
   if (failures.length > 5) note(`…and ${failures.length - 5} more`)
